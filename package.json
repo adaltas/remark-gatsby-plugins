@@ -8,5 +8,9 @@
   "license": "MIT",
   "dependencies": {
     "lerna": "^3.22.1"
-  }
+  },
+  "workspaces": [
+    "gatsby/*",
+    "remark/*"
+  ]
 }
