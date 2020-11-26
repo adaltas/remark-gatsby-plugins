@@ -1,0 +1,7 @@
+{
+  "packages": [
+    "gatsby/*",
+    "remark/*"
+  ],
+  "version": "independent"
+}
