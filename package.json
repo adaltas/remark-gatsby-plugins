@@ -1,0 +1,9 @@
+{
+  "name": "gatsby",
+  "version": "0.0.0",
+  "description": "A selection of Gatsby plugins developed and used by Adaltas ",
+  "main": "index.js",
+  "repository": "https://github.com/adaltas/gatsby.git",
+  "author": "David Worms <david@adaltas.com>",
+  "license": "MIT"
+}
