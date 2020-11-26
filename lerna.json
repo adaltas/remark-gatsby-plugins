@@ -1,7 +1,9 @@
 {
+  "npmClient": "yarn",
   "packages": [
     "gatsby/*",
     "remark/*"
   ],
+  "useWorkspaces": true,
   "version": "independent"
 }
