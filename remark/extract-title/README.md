@@ -1,1 +1,1 @@
-# Package `gatsby-remark-extract-title`
+# Package `gatsby-caddy-redirects`
