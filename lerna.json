@@ -1,4 +1,9 @@
 {
+  "command": {
+    "version": {
+      "message": "chore(release): release"
+    }
+  },
   "npmClient": "yarn",
   "packages": [
     "gatsby/*",
