@@ -1,0 +1,1 @@
+# Gatsby plugins by Adaltas
