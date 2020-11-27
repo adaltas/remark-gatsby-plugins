@@ -1,0 +1,8 @@
+{
+  "name": "gatsby",
+  "version": "0.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/adaltas/gatsby.git",
+  "author": "David Worms <david@adaltas.com>",
+  "license": "MIT"
+}
