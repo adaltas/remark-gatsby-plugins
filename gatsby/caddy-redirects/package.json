@@ -1,6 +1,6 @@
 {
   "name": "gatsby-caddy-redirects",
-  "version": "0.0.2-alpha.1",
+  "version": "0.1.0-alpha.0",
   "main": "index.js",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "license": "MIT",
