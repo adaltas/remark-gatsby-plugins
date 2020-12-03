@@ -5,5 +5,8 @@
   "main": "index.js",
   "repository": "https://github.com/adaltas/remark-gatsby-plugins.git",
   "author": "David Worms <david@adaltas.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "lerna": "^3.22.1"
+  }
 }
