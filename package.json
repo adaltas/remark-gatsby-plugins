@@ -11,6 +11,8 @@
   "private": true,
   "repository": "https://github.com/adaltas/remark-gatsby-plugins.git",
   "workspaces": [
-    "packages/*"
+    "gatsby/*",
+    "gatsby-remark/*",
+    "remark/*"
   ]
 }
