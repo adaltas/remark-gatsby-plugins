@@ -1,0 +1,9 @@
+{
+  "name": "remark-gatsby-plugins",
+  "version": "0.0.0",
+  "description": "A selection of remark and Gatsby plugins developed and used by Adaltas",
+  "main": "index.js",
+  "repository": "https://github.com/adaltas/remark-gatsby-plugins.git",
+  "author": "David Worms <david@adaltas.com>",
+  "license": "MIT"
+}
