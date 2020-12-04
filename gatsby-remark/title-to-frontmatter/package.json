@@ -1,11 +1,31 @@
 {
   "name": "gatsby-remark-title-to-frontmatter",
   "version": "1.0.0-alpha.3",
-  "main": "index.js",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
+  "devDependencies": {
+    "hast-util-to-html": "^7.1.2",
+    "mdast-util-to-hast": "^10.0.1",
+    "mocha": "^8.2.1",
+    "remark": "^13.0.0",
+    "should": "^13.2.3"
+  },
   "files": [
     "/lib"
   ],
   "license": "MIT",
-  "scripts": {}
+  "main": "index.js",
+  "mocha": {
+    "throw-deprecation": true,
+    "require": [
+      "should"
+    ],
+    "inline-diffs": true,
+    "timeout": 40000,
+    "reporter": "spec",
+    "recursive": true
+  },
+  "scripts": {},
+  "dependencies": {
+    "hast-util-to-text": "^2.0.1"
+  }
 }
