@@ -3,6 +3,7 @@
   "version": "1.0.0-alpha.3",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "devDependencies": {
+    "coffeescript": "^2.5.1",
     "hast-util-to-html": "^7.1.2",
     "mdast-util-to-hast": "^10.0.1",
     "mocha": "^8.2.1",
@@ -17,14 +18,17 @@
   "mocha": {
     "throw-deprecation": true,
     "require": [
-      "should"
+      "should",
+      "coffeescript/register"
     ],
     "inline-diffs": true,
     "timeout": 40000,
     "reporter": "spec",
     "recursive": true
   },
-  "scripts": {},
+  "scripts": {
+    "test": "mocha 'test/**/*.coffee'"
+  },
   "dependencies": {
     "hast-util-to-text": "^2.0.1"
   }
