@@ -29,6 +29,7 @@
   },
   "scripts": {
     "postinstall": "husky install",
+    "publish": "lerna publish from-git --yes",
     "test": "lerna run test"
   }
 }
