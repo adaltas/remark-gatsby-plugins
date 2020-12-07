@@ -1,6 +1,6 @@
 {
   "name": "gatsby-remark-title-to-frontmatter",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "devDependencies": {
     "coffeescript": "^2.5.1",
