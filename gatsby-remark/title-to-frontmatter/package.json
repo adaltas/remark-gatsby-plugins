@@ -4,8 +4,6 @@
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "devDependencies": {
     "coffeescript": "^2.5.1",
-    "hast-util-to-html": "^7.1.2",
-    "mdast-util-to-hast": "^10.0.1",
     "mocha": "^8.2.1",
     "remark": "^13.0.0",
     "should": "^13.2.3"
@@ -30,6 +28,8 @@
     "test": "mocha 'test/**/*.coffee'"
   },
   "dependencies": {
-    "hast-util-to-text": "^2.0.1"
+    "hast-util-to-html": "^7.1.2",
+    "hast-util-to-text": "^2.0.1",
+    "mdast-util-to-hast": "^10.1.1"
   }
 }
