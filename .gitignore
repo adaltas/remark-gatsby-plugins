@@ -1,4 +1,5 @@
-.*
+.git
+.husky
 node_modules
 !.gitignore
 package-lock.json
