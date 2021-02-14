@@ -1,8 +1,8 @@
-.git
-.husky
+.*
 node_modules
 !.gitignore
 package-lock.json
 #yarn.lock
 !.husky
 !.travis.yml
+!.github
