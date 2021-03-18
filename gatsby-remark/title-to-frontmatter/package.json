@@ -2,6 +2,11 @@
   "name": "gatsby-remark-title-to-frontmatter",
   "version": "1.1.0",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
+  "dependencies": {
+    "hast-util-to-html": "^7.1.2",
+    "hast-util-to-text": "^2.0.1",
+    "mdast-util-to-hast": "^10.1.1"
+  },
   "devDependencies": {
     "coffeescript": "^2.5.1",
     "mocha": "^8.2.1",
@@ -24,12 +29,10 @@
     "reporter": "spec",
     "recursive": true
   },
+  "peerDependencies": {
+    "gatsby": "^3.0.0"
+  },
   "scripts": {
     "test": "mocha 'test/**/*.coffee'"
-  },
-  "dependencies": {
-    "hast-util-to-html": "^7.1.2",
-    "hast-util-to-text": "^2.0.1",
-    "mdast-util-to-hast": "^10.1.1"
   }
 }
