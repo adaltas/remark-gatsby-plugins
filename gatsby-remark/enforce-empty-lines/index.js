@@ -2,9 +2,34 @@
 const path = require('path')
 const fs = require('fs').promises
 const mm = require('micromatch')
-const visit = require('unist-util-visit')
 
 const block = ['blockquote', 'code', 'heading', 'html', 'list', 'paragraph', 'thematicBreak']
+
+const visit = (ast, visitor, {index=0, ancestors=[]}={}) => {
+  if(ast.children){
+    ast.children.map( (child, i) => {
+      visit(child, visitor, {
+        index: i,
+        ancestors: [...ancestors, ast]
+      })
+    })
+  }
+  visitor(ast, {
+    ancestors: ancestors,
+    depth: ancestors.length,
+    index: index,
+    parent: ancestors[ancestors.length-1]
+  })
+}
+
+const has_parent = (ancestors, type) => {
+  for(let ancestor of ancestors){
+    if(ancestor.type === type){
+      return true
+    }
+  }
+  return false
+}
 
 module.exports = async (
   { markdownNode, markdownAST, reporter },
@@ -20,8 +45,9 @@ module.exports = async (
   }
   if(!markdownNode.frontmatter.noExtraLineBtwParagraphs){
     warnings = []
-    visit(markdownAST, (node, index, parent) => {
+    visit(markdownAST, (node, {ancestors, index, parent}) => {
       // Two consecutive paragraphs end up as in node with a `\n` inside
+      
       if(node.type === 'text'){
         paragraphs = node.value.split('\n')
         if(paragraphs.length > 1){
@@ -33,6 +59,10 @@ module.exports = async (
         }
       }
       if(!block.includes(node.type)) return;
+      // Does not apply inside list
+      if(node.type === 'list' && has_parent(ancestors, 'list')){
+        return
+      }
       if(index === 0) return;
       const sibling = parent.children[index-1]
       if(node.position.start.line - sibling.position.end.line === 1){
