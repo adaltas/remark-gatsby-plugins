@@ -43,11 +43,10 @@ module.exports = async (
     const isIncluded = mm.isMatch(filePath, include)
     if (!isIncluded) { return }
   }
-  if(!markdownNode.frontmatter.noExtraLineBtwParagraphs){
+  if(!markdownNode.frontmatter.noEnforceEmptyLines){
     warnings = []
     visit(markdownAST, (node, {ancestors, index, parent}) => {
       // Two consecutive paragraphs end up as in node with a `\n` inside
-      
       if(node.type === 'text'){
         paragraphs = node.value.split('\n')
         if(paragraphs.length > 1){
@@ -65,7 +64,14 @@ module.exports = async (
       }
       if(index === 0) return;
       const sibling = parent.children[index-1]
-      if(node.position.start.line - sibling.position.end.line === 1){
+      const start = node.position.start.line
+      let end = sibling.position.end.line
+      // List include the extra line,
+      // we need to search for the position of the last list item
+      if(sibling.type === 'list'){
+        end = sibling.children[sibling.children.length-1].position.end.line
+      }
+      if(start - end === 1){
         warnings.push({
           line: node.position.start.line
         })

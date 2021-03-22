@@ -194,3 +194,19 @@ describe 'Extract title', ->
     # only one node of type html is created,
     # there is no paragraph node
     messages.length.should.eql 0
+
+  it 'html require an empty line', ->
+    messages = []
+    await blockEmptyLine
+      markdownNode:
+        fileAbsolutePath: __filename
+        frontmatter: {}
+      markdownAST: (new Remark()).parse '''
+      * list
+        
+      <p/>
+      '''
+      reporter: warn: (message) ->
+        messages.push message
+    , {}
+    messages.length.should.eql 0
