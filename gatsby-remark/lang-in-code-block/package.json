@@ -1,0 +1,33 @@
+{
+  "name": "gatsby-remark-lang-in-code-block",
+  "version": "0.0.0",
+  "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
+  "dependencies": {
+    "micromatch": "~4.0.2"
+  },
+  "devDependencies": {
+    "coffeescript": "^2.5.1",
+    "mocha": "^8.3.2",
+    "remark": "^13.0.0",
+    "should": "^13.2.3"
+  },
+  "license": "MIT",
+  "main": "index.js",
+  "mocha": {
+    "throw-deprecation": true,
+    "require": [
+      "should",
+      "coffeescript/register"
+    ],
+    "inline-diffs": true,
+    "timeout": 40000,
+    "reporter": "spec",
+    "recursive": true
+  },
+  "peerDependencies": {
+    "gatsby": "^3.0.0 || ^2.0.0"
+  },
+  "scripts": {
+    "test": "mocha 'test/**/*.coffee'"
+  }
+}
