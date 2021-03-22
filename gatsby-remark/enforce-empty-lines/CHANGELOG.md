@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.1.3](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-enforce-empty-lines@0.1.2...gatsby-remark-enforce-empty-lines@0.1.3) (2021-03-22)
+
+
+### Bug Fixes
+
+* **gatsby-remark-enforce-empty-lines:** block preceded by list ([ba38e55](https://github.com/adaltas/remark-gatsby-plugins/commit/ba38e55ba03139a504fea942bcdbf57db3f1a455))
+* **gatsby-remark-title-to-frontmatter:** relax inside list ([c50ef0a](https://github.com/adaltas/remark-gatsby-plugins/commit/c50ef0a78bc81267a11221c280eb7caf64f0946c))
+
+
+
+
+
 ## [0.1.2](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-enforce-empty-lines@0.1.1...gatsby-remark-enforce-empty-lines@0.1.2) (2021-03-22)
 
 
