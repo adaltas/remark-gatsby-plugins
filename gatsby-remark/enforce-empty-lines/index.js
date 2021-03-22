@@ -58,11 +58,16 @@ module.exports = async (
         }
       }
       if(!block.includes(node.type)) return;
+      // Does not apply to first element
+      if(index === 0) return;
       // Does not apply inside list
       if(node.type === 'list' && has_parent(ancestors, 'list')){
         return
       }
-      if(index === 0) return;
+      // More relax inside list
+      if(has_parent(ancestors, 'list')){
+        return
+      }
       const sibling = parent.children[index-1]
       const start = node.position.start.line
       let end = sibling.position.end.line

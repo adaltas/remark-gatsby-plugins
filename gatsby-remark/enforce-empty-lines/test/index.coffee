@@ -5,7 +5,7 @@ Remark = require 'remark'
 
 blockEmptyLine = require '..'
 
-describe 'Extract title', ->
+describe 'Enforce empty lines', ->
   
   it 'error message', ->
     new Promise (resolve) ->
@@ -43,7 +43,7 @@ describe 'Extract title', ->
       > blockquote
       ***
       hello
-      <div>html</div>
+      <html/>
       '''
       reporter: warn: (message) ->
         messages.push message
@@ -204,9 +204,38 @@ describe 'Extract title', ->
       markdownAST: (new Remark()).parse '''
       * list
         
-      <p/>
+      <html/>
       '''
       reporter: warn: (message) ->
         messages.push message
     , {}
     messages.length.should.eql 0
+
+  it 'list tolerate non empty lines', ->
+    messages = []
+    await blockEmptyLine
+      markdownNode:
+        fileAbsolutePath: __filename
+        frontmatter: {}
+      markdownAST: (new Remark()).parse '''
+      * valid list
+        ```
+        code
+        ```
+        > blockquote
+        ***
+        hello
+        <html/>
+      * invalid list
+        text
+        > blockquote
+        text
+        <html/>
+      '''
+      reporter: warn: (message) ->
+        messages.push message
+    , {}
+    messages.should.match [
+      /test\/index\.coffee#10/
+      /test\/index\.coffee#12/
+    ]
