@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "coffeescript": "^2.5.1",
-    "mocha": "^8.3.2",
+    "mocha": "^8.4.0",
     "remark": "^13.0.0",
     "should": "^13.2.3"
   },
@@ -30,7 +30,7 @@
     "recursive": true
   },
   "peerDependencies": {
-    "gatsby": "^3.0.0"
+    "gatsby": "^3.5.0"
   },
   "scripts": {
     "test": "mocha 'test/**/*.coffee'"
