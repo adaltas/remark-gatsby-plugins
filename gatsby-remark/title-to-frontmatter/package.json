@@ -30,7 +30,7 @@
     "recursive": true
   },
   "peerDependencies": {
-    "gatsby": "^3.5.0"
+    "gatsby": "^3.5.1"
   },
   "scripts": {
     "test": "mocha 'test/**/*.coffee'"

@@ -7,7 +7,7 @@
   },
   "devDependencies": {
     "coffeescript": "^2.5.1",
-    "mocha": "^8.3.2",
+    "mocha": "^8.4.0",
     "remark": "^13.0.0",
     "should": "^13.2.3"
   },
