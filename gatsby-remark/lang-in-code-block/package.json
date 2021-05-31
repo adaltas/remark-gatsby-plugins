@@ -1,6 +1,6 @@
 {
   "name": "gatsby-remark-lang-in-code-block",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "micromatch": "~4.0.4",
