@@ -50,3 +50,25 @@ describe 'Extract title', ->
     frontmatter.should.eql
       title: 'this is the inlineCode title'
       titleHtml: '<h1>this is the <code>inlineCode</code> title</h1>'
+  it 'Dont overwrite frontmatter', ->
+    # Initialize
+    mast = (new Remark()).parse """
+    # Content title
+    Some text
+    """
+    frontmatter =
+      title: 'Frontmatter title'
+    # Run
+    extractTitle
+      markdownNode:
+        frontmatter: frontmatter
+      markdownAST: mast
+    , {}
+    # Convert
+    hast = toHast mast
+    html = toHtml hast
+    # Assert
+    html.should.eql '<p>Some text</p>'
+    frontmatter.should.eql
+      title: 'Frontmatter title'
+
