@@ -47,8 +47,8 @@ describe 'enforce-empty-lines', ->
         messages.push message
     , {}
     messages.should.match [
-      /test\/index\.coffee#3/
-      /test\/index\.coffee#11/
+      /test\/list\.coffee#3/
+      /test\/list\.coffee#11/
     ]
 
   it 'list tolerate non empty lines', ->
@@ -76,7 +76,7 @@ describe 'enforce-empty-lines', ->
         messages.push message
     , {}
     messages.should.match [
-      /test\/index\.coffee#10/
-      /test\/index\.coffee#12/
+      /test\/list\.coffee#10/
+      /test\/list\.coffee#12/
     ]
   
