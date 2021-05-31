@@ -1,5 +1,5 @@
 
-# Remark absolute links
+# Remark links absolute
 
 Convert relative links to absolute link.
 
