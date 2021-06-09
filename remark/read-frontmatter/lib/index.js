@@ -1,5 +1,5 @@
 
-yaml = require('js-yaml')
+const yaml = require('js-yaml')
 
 module.exports = () =>
   (ast, vfile) => {
