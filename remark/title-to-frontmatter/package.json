@@ -1,6 +1,6 @@
 {
   "name": "remark-title-to-frontmatter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "hast-util-to-text": "^2.0.1"
@@ -11,7 +11,7 @@
     "rehype-stringify": "^8.0.0",
     "remark-frontmatter": "^3.0.0",
     "remark-parse": "^9.0.0",
-    "remark-read-frontmatter": "^0.1.0",
+    "remark-read-frontmatter": "^0.1.1",
     "remark-rehype": "^8.1.0",
     "should": "^13.2.3",
     "unified": "^9.2.1"
