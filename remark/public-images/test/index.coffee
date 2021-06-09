@@ -10,7 +10,15 @@ pluginPublicImages = require '../lib'
 
 describe 'Parse frontmatter', ->
   
-  it.skip 'simple', ->
+  it 'simple', ->
+    config =
+      # repo_local was target
+      "repo_local": "#{require('os').tmpdir()}/remark_public_images/local"
+      # repo_public was repository
+      "repo_public": "#{require('os').tmpdir()}/remark_public_images/public"
+      "base_url": 'https://domain.com/repo/master/',
+      "reset": true,
+      "source": "#{require('os').tmpdir()}/remark_public_images/article/index.md"
     content = """
     ![Image 1](./image_1.png)
     """
@@ -22,27 +30,26 @@ describe 'Parse frontmatter', ->
       mkdir #{require('os').tmpdir()}/remark_public_images/article
       mkdir #{require('os').tmpdir()}/remark_public_images/public
       cd #{require('os').tmpdir()}/remark_public_images/public
-      git init
-      echo 'Readme' > README.md
-      git add README.md
-      git commit -m "Readme"
+      git init --bare
       """, (err, stdout, stderr) ->
         if err then reject(err) else resolve()
     await fs.writeFile "#{require('os').tmpdir()}/remark_public_images/article/index.md", content, 'ascii'
     await fs.writeFile "#{require('os').tmpdir()}/remark_public_images/article/image_1.png", content_image_1, 'base64'
-    {images} = await unified()
+    {contents, images} = await unified()
     .use parseMarkdown
-    .use pluginPublicImages,
-      # repo_local was target
-      "repo_local": "#{require('os').tmpdir()}/remark_public_images/local"
-      # repo_public was repository
-      "repo_public": "#{require('os').tmpdir()}/remark_public_images/public"
-      "base_url": 'https://domain.com/repo/master/',
-      "reset": true,
-      "source": "#{require('os').tmpdir()}/remark_public_images/article/index.md",
-      "location": ({options, node}) ->
-        path.join("#{require('os').tmpdir()}/remark_public_images/local", node.url)
+    .use pluginPublicImages, config
+      # "location": ({options, node}) ->
+      #   path.join("#{require('os').tmpdir()}/remark_public_images/local", node.url)
     .use remark2rehype
     .use html
-    .process await fs.readFile "#{require('os').tmpdir()}/remark_public_images/article/index.md"
-    console.log '>>images>>', images
+    .process await fs.readFile config.source
+    images.should.eql [
+      url: './image_1.png',
+      alt: 'Image 1',
+      target: "#{hash config.source}/image_1.png"
+    ]
+    contents.should.eql [
+      '<p>'
+      "<img src=\"https://domain.com/repo/master/#{hash config.source}/image_1.png\" alt=\"Image 1\">"
+      '</p>'
+    ].join ''

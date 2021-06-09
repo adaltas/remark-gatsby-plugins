@@ -23,14 +23,13 @@ module.exports = (options = {}) => {
     const res = visit(ast, 'image', (node) => {
       if(!/\.png$/.test(node.url)) return
       const image = {
+        // Relative path inside markdown
         url: node.url,
         alt: node.alt,
-        target: path.resolve(
-          process.cwd(),
-          options.location({options: options, node: node})
-        )
+        // Relative location of image in local and remote repositories
+        target: options.location({options: options, node: node})
       }
-      node.url = `${options.base_url}/${image.target}`
+      node.url = new URL(image.target, options.base_url).href
       images.push(image)
     })
     await new Promise((resolve, reject) => {
@@ -50,22 +49,21 @@ module.exports = (options = {}) => {
         `  git push origin master`,
         `fi`,
         `# Reset if option is activated and if there is more than the first initial commit`,
-        `reset=$([ ! -z '${options.reset ? '1' : ''}' ] && [ \`git rev-list HEAD --count\` -gt '1' ] && echo '1')`,
+        `reset=$([ ! -z '${options.reset ? '1' : ''}' ] && [ \`git rev-list HEAD --count\` -gt '1' ] && echo '1' || echo '')`,
         `if [ ! -z "$reset" ]; then`,
         `  git reset --hard HEAD~1`,
         `fi`,
         images.map((image) =>
           [
-            `"mkdir -p ${path.dirname(image.target)}"`,
-            `"cp ${path.dirname(options.source)}/${image.url} ${image.target}"`,
-            `"git add ${image.target}"`,
+            `mkdir -p ${path.dirname(image.target)}`,
+            `cp ${path.join(path.dirname(options.source), image.url)} ${image.target}`,
+            `git add ${image.target}`,
           ].join('\n')
         ).join('\n'),
         `if [ ! -z "$(git status --porcelain)" ]; then`,
         `  git commit -m 'upload new images'`,
         `fi`,
-        `force=$([ ! -z "$reset" ] && echo '-f')`,
-        `echo "git push $force origin master"`,
+        `force=$([ ! -z "$reset" ] && echo '-f' || echo '')`,
         `git push $force origin master`,
       ].join('\n'), (err, stdout, stderr) => {
         if(err){
