@@ -8,15 +8,15 @@ Upload every image present on the markdown article into a public GIT repository 
 - `base_url` ()\
   Base public Git URL use to view raw data file.
 - `location` ()\
-  Convert the image path into a path inside the local repository
-- `repository` ()\
+  Convert the image path into a path inside the local repository.
+- `repo_public` ()\
   Address of the remote repository, user must have read/write access.
 - `reset` (boolean, `false`)\
   Reset the Git commit history if repository already exists
 - `source` ()\
   Location of the original markdown document.
-- `target` ()\
-  Directory location were to the local Git repository
+- `repo_local` ()\
+  Address of the local Git directory.
 
 ## Exemple
 
