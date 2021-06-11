@@ -6,7 +6,7 @@ html = require 'rehype-stringify'
 extractFrontmatter = require 'remark-frontmatter'
 pluginParseFrontmatter = require '../lib'
 
-describe 'Parse frontmatter', ->
+describe 'Read frontmatter', ->
   
   it 'simple', ->
     {frontmatter} = await unified()
