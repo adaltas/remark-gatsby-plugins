@@ -22,6 +22,6 @@ describe 'Normalize absolute links', ->
     contents.trim().should.eql """
     <p>
       <a href="http://www.adaltas.com/some/path/">HTTP link</a>
-      <a href="http:/www.adaltas.com/some/path/">absolute link</a>
+      <a href="http://www.adaltas.com/some/path/">absolute link</a>
     </p>
     """
