@@ -1,5 +1,5 @@
 
-os = os
+os = require 'os'
 {exec} = require 'child_process'
 {promises: fs} = require 'fs'
 path = require 'path'
@@ -9,7 +9,7 @@ remark2rehype = require 'remark-rehype'
 html = require 'rehype-stringify'
 pluginPublicImages = require '../lib'
 
-describe 'Parse frontmatter', ->
+describe 'Public images', ->
   
   it 'simple', ->
     config =
