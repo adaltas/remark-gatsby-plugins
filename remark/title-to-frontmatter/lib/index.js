@@ -2,6 +2,7 @@
 const toText = require('hast-util-to-text')
 
 module.exports = () =>
+
   (ast, vfile) => {
     if(vfile.frontmatter && vfile.frontmatter.noTitleToFrontmatter) return
     if(!ast.children.length) return
