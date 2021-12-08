@@ -18,9 +18,9 @@ const {frontmatter} = unified()
   `title: 'Article'`,
   `lang: fr`,
   `---`,
-].join('\n'))
+].join('\n'));
 // Test output
 assert.deepEqual(frontmatter, {
   title: 'Article',
   lang: 'fr'
-})
+});
