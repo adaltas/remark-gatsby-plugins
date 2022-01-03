@@ -24,6 +24,9 @@
     "reporter": "spec",
     "recursive": true
   },
+  "peerDependencies": {
+    "gatsby": "^4.0.0"
+  },
   "scripts": {
     "test": "mocha 'test/**/*.coffee'"
   }
