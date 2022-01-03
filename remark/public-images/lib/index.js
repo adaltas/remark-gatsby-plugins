@@ -40,7 +40,7 @@ module.exports = (options = {}) => {
         `[ -d ${options.repo_local}/.git ] || git init`,
         `git remote get-url origin || git remote add origin ${options.repo_public}`,
         // Pull in case the remote repo contains changes
-        `git pull origin master`,
+        `git show-ref --verify --quiet refs/heads/master && git pull origin master`,
         `if [ ! -f .gitignore ]; then`,
         `cat <<-GITIGNORE >.gitignore`,
         `.*`,
