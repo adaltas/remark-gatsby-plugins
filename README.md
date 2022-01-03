@@ -1,4 +1,4 @@
-# remark and Gatsby plugins by Adaltas
+# Remark and Gatsby plugins by Adaltas
 
 ## Developers
 
