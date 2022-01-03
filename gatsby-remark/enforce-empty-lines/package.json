@@ -1,6 +1,6 @@
 {
   "name": "gatsby-remark-enforce-empty-lines",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "micromatch": "~4.0.4"

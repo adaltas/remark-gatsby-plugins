@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.2.2](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-links-absolute@0.2.1...remark-links-absolute@0.2.2) (2022-01-03)
+
+
+### Bug Fixes
+
+* remove gatsby peer dependency from remark plugins ([9ce3a85](https://github.com/adaltas/remark-gatsby-plugins/commit/9ce3a8501f3b47807b9ffa44ba7e0ddcdcc7b34b))
+
+
+
+
+
 ## [0.2.1](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-links-absolute@0.2.0...remark-links-absolute@0.2.1) (2021-06-11)
 
 

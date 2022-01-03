@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [1.2.0](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-title-to-frontmatter@1.1.4...gatsby-remark-title-to-frontmatter@1.2.0) (2022-01-03)
+
+
+### Features
+
+* raise gatsby peer dependency version ([834a986](https://github.com/adaltas/remark-gatsby-plugins/commit/834a986f705084c433954d43917ebc8b335a2f38))
+
+
+
+
+
 ## [1.1.4](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-title-to-frontmatter@1.1.3...gatsby-remark-title-to-frontmatter@1.1.4) (2021-05-31)
 
 **Note:** Version bump only for package gatsby-remark-title-to-frontmatter

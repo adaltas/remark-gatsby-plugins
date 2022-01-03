@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.2.0](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-enforce-empty-lines@0.1.5...gatsby-remark-enforce-empty-lines@0.2.0) (2022-01-03)
+
+
+### Features
+
+* raise gatsby peer dependency version ([834a986](https://github.com/adaltas/remark-gatsby-plugins/commit/834a986f705084c433954d43917ebc8b335a2f38))
+
+
+
+
+
 ## [0.1.5](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-enforce-empty-lines@0.1.4...gatsby-remark-enforce-empty-lines@0.1.5) (2021-05-31)
 
 **Note:** Version bump only for package gatsby-remark-enforce-empty-lines
