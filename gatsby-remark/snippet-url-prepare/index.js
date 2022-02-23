@@ -16,14 +16,15 @@ module.exports = async (
   }
   if(!markdownNode.frontmatter.noSnippedUrl){
     visit(markdownAST, 'inlineCode', (node, {ancestors, index, parent}) => {
-      let file; if([,file] = /^embed:(.*?)({|$)/.exec(node.value)){
-        if(!node.data){
-          node.data = {};
-        };
-        node.data.embed = {
-          file: file
-        };
-      }
+      const match = /^embed:(.*?)({|$)/.exec(node.value);
+      if(!match) return;
+      const [, file] = match;
+      if(!node.data){
+        node.data = {};
+      };
+      node.data.embed = {
+        file: file
+      };
     });
   }
 }
