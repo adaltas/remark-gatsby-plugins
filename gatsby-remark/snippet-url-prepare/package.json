@@ -1,7 +1,7 @@
 {
   "name": "gatsby-remark-snippet-url-prepare",
   "main": "index.js",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "dependencies": {
     "micromatch": "~4.0.4"
   },
