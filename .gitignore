@@ -2,7 +2,8 @@
 node_modules
 !.gitignore
 package-lock.json
-#yarn.lock
+yarn.lock
+yarn-error.log
 !.github
 !.husky
 !.travis.yml

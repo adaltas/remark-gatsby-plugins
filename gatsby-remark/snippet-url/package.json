@@ -1,0 +1,33 @@
+{
+  "name": "gatsby-remark-snippet-url",
+  "main": "index.js",
+  "version": "0.0.0",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.10",
+    "micromatch": "~4.0.4"
+  },
+  "devDependencies": {
+    "coffeescript": "^2.5.1",
+    "mocha": "^8.4.0",
+    "remark": "^13.0.0",
+    "should": "^13.2.3"
+  },
+  "license": "MIT",
+  "mocha": {
+    "throw-deprecation": true,
+    "require": [
+      "should",
+      "coffeescript/register"
+    ],
+    "inline-diffs": true,
+    "timeout": 40000,
+    "reporter": "spec",
+    "recursive": true
+  },
+  "peerDependencies": {
+    "gatsby": "^4.0.0"
+  },
+  "scripts": {
+    "test": "mocha 'test/**/*.coffee'"
+  }
+}
