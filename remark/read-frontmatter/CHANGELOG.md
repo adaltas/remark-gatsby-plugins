@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.1.4](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-read-frontmatter@0.1.3...remark-read-frontmatter@0.1.4) (2022-06-10)
+
+**Note:** Version bump only for package remark-read-frontmatter
+
+
+
+
+
 ## [0.1.3](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-read-frontmatter@0.1.2...remark-read-frontmatter@0.1.3) (2022-01-03)
 
 
