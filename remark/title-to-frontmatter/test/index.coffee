@@ -10,7 +10,7 @@ pluginTitleToFrontmatter = require '../lib'
 describe 'Extract title', ->
 
   it 'without frontmatter', ->
-    {frontmatter} = await unified()
+    {data} = await unified()
     .use parseMarkdown
     .use extractFrontmatter, ['yaml']
     .use pluginReadFrontmatter
@@ -20,11 +20,11 @@ describe 'Extract title', ->
     .process """
     # My title
     """
-    frontmatter.should.eql
+    data.should.eql
       title: 'My title'
 
   it 'with frontmatter', ->
-    {frontmatter} = await unified()
+    {data} = await unified()
     .use parseMarkdown
     .use extractFrontmatter, ['yaml']
     .use pluginReadFrontmatter
@@ -38,12 +38,12 @@ describe 'Extract title', ->
 
     # My title
     """
-    frontmatter.should.eql
+    data.should.eql
       lang: 'fr'
       title: 'My title'
 
   it 'no title', ->
-    {frontmatter} = await unified()
+    {data} = await unified()
     .use parseMarkdown
     .use extractFrontmatter, ['yaml']
     .use pluginReadFrontmatter
@@ -57,11 +57,11 @@ describe 'Extract title', ->
     
     hello
     """
-    frontmatter.should.eql
+    data.should.eql
       lang: 'fr'
 
   it 'no frontmatter, no content', ->
-    {frontmatter} = await unified()
+    {data} = await unified()
     .use parseMarkdown
     .use extractFrontmatter, ['yaml']
     .use pluginReadFrontmatter
@@ -70,10 +70,10 @@ describe 'Extract title', ->
     .use html
     .process """
     """
-    should(frontmatter).be.undefined()
+    data.should.eql {}
 
   it 'with frontmatter, no content', ->
-    {frontmatter} = await unified()
+    {data} = await unified()
     .use parseMarkdown
     .use extractFrontmatter, ['yaml']
     .use pluginReadFrontmatter
@@ -85,5 +85,20 @@ describe 'Extract title', ->
     lang: fr
     ---
     """
-    frontmatter.should.eql
+    data.should.eql
       lang: 'fr'
+
+  it 'option `property`', ->
+    {data, test} = await unified()
+    .use parseMarkdown
+    .use extractFrontmatter, ['yaml']
+    .use pluginReadFrontmatter
+    .use pluginTitleToFrontmatter, property: 'test'
+    .use remark2rehype
+    .use html
+    .process """
+    # My title
+    """
+    data.should.eql {}
+    test.should.eql
+      title: 'My title'
