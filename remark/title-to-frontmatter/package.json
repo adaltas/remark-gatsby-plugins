@@ -1,6 +1,6 @@
 {
   "name": "remark-title-to-frontmatter",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "hast-util-to-text": "^2.0.1"
