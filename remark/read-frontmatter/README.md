@@ -1,7 +1,7 @@
 
 # Remark Read Frontmatter
 
-Parse frontmatter and insert the "frontmatter" field in the vfile object.
+Parse frontmatter and insert the "data" field in the vfile object.
 
 ## Usage
 
@@ -36,3 +36,8 @@ assert.deepEqual(frontmatter, {
   lang: 'fr'
 });
 ```
+
+## Options
+
+* `property`, string, default `data`   
+  The [vfile](https://github.com/vfile/vfile) property name where to find the frontmatter object.
