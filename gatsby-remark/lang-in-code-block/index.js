@@ -8,8 +8,13 @@ module.exports = async (
   { markdownNode, markdownAST, reporter },
   { include = [] }
 ) => {
+  const fileAbsolutePath = (
+    markdownNode.internal?.contentFilePath // gatsby-plugin-mdx style
+    ||
+    markdownNode.fileAbsolutePath // gatsby-transformer-remark style
+  )
   if(include.length > 0){
-    const filePath = markdownNode.fileAbsolutePath
+    const filePath = fileAbsolutePath
       .split(process.cwd())
       .pop()
       .replace(/^\//, '')
@@ -26,8 +31,8 @@ module.exports = async (
       }
     })
     if(warnings.length){
-      const fmlines = await countFrontMatterLines(markdownNode.fileAbsolutePath)
-      const file = path.relative('.', markdownNode.fileAbsolutePath)
+      const fmlines = await countFrontMatterLines(fileAbsolutePath)
+      const file = path.relative('.', fileAbsolutePath)
       warnings.map( ({line}) => {
         reporter.warn(
           `Lang in code block is required in ${file}#${fmlines + line}`,

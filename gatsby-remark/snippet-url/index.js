@@ -11,8 +11,13 @@ module.exports = async (
     message,
     url }
 ) => {
+  const fileAbsolutePath = (
+    markdownNode.internal?.contentFilePath // gatsby-plugin-mdx style
+    ||
+    markdownNode.fileAbsolutePath // gatsby-transformer-remark style
+  )
   if(include.length > 0){
-    const filePath = markdownNode.fileAbsolutePath
+    const filePath = fileAbsolutePath
       .split(process.cwd())
       .pop()
       .replace(/^\//, '')
