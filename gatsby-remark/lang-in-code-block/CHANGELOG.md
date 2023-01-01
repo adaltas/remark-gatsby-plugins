@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.3.0](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-lang-in-code-block@0.2.1...gatsby-remark-lang-in-code-block@0.3.0) (2023-01-01)
+
+
+### Features
+
+* mdx support ([52afc36](https://github.com/adaltas/remark-gatsby-plugins/commit/52afc36065807a1d137974edd1c032420152b202))
+
+
+
+
+
 ## [0.2.1](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-lang-in-code-block@0.2.0...gatsby-remark-lang-in-code-block@0.2.1) (2022-12-30)
 
 **Note:** Version bump only for package gatsby-remark-lang-in-code-block
