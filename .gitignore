@@ -4,6 +4,7 @@ node_modules
 package-lock.json
 yarn.lock
 yarn-error.log
+/lerna-debug.log
 !.github
 !.husky
 !.travis.yml
