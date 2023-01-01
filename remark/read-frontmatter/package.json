@@ -6,8 +6,8 @@
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
-    "coffeescript": "^2.5.1",
-    "mocha": "^8.4.0",
+    "coffeescript": "^2.7.0",
+    "mocha": "^10.2.0",
     "rehype-stringify": "^8.0.0",
     "remark-frontmatter": "^3.0.0",
     "remark-parse": "^9.0.0",

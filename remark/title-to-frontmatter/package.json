@@ -6,12 +6,12 @@
     "hast-util-to-text": "^2.0.1"
   },
   "devDependencies": {
-    "coffeescript": "^2.5.1",
-    "mocha": "^8.4.0",
+    "coffeescript": "^2.7.0",
+    "mocha": "^10.2.0",
     "rehype-stringify": "^8.0.0",
     "remark-frontmatter": "^3.0.0",
     "remark-parse": "^9.0.0",
-    "remark-read-frontmatter": "^0.1.4",
+    "remark-read-frontmatter": "^0.1.5",
     "remark-rehype": "^8.1.0",
     "should": "^13.2.3",
     "unified": "^9.2.1"

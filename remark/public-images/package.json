@@ -6,8 +6,8 @@
     "unist-util-visit": "^2.0.3"
   },
   "devDependencies": {
-    "coffeescript": "^2.5.1",
-    "mocha": "^8.4.0",
+    "coffeescript": "^2.7.0",
+    "mocha": "^10.2.0",
     "rehype-stringify": "^8.0.0",
     "remark-parse": "^9.0.0",
     "remark-rehype": "^8.1.0",

@@ -3,11 +3,11 @@
   "main": "index.js",
   "version": "0.1.2",
   "dependencies": {
-    "micromatch": "~4.0.4"
+    "micromatch": "~4.0.5"
   },
   "devDependencies": {
-    "coffeescript": "^2.5.1",
-    "mocha": "^8.4.0",
+    "coffeescript": "^2.7.0",
+    "mocha": "^10.2.0",
     "remark": "^13.0.0",
     "should": "^13.2.3"
   },
