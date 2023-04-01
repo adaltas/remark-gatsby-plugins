@@ -1,6 +1,6 @@
 
 import dedent from 'dedent'
-import unified from 'unified'
+import { unified } from 'unified'
 import parseMarkdown from 'remark-parse'
 import remark2rehype from 'remark-rehype'
 import html from 'rehype-stringify'

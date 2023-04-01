@@ -8,12 +8,12 @@
   "devDependencies": {
     "dedent": "^0.7.0",
     "mocha": "^10.2.0",
-    "rehype-stringify": "^8.0.0",
-    "remark-frontmatter": "^3.0.0",
-    "remark-parse": "^9.0.0",
-    "remark-rehype": "^8.1.0",
+    "rehype-stringify": "^9.0.3",
+    "remark-frontmatter": "^4.0.1",
+    "remark-parse": "^10.0.1",
+    "remark-rehype": "^10.1.0",
     "should": "^13.2.3",
-    "unified": "^9.2.1"
+    "unified": "^10.1.2"
   },
   "exports": {
     ".": {
