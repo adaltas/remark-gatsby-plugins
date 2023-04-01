@@ -1,11 +1,11 @@
+import { unified } from 'unified'
+import stringify from 'remark-stringify'
+import gfm from 'remark-gfm'
 
-const unified = require('unified');
-const stringify = require('remark-stringify');
-const gfm = require('remark-gfm');
-
-module.exports = (ast, settings) =>
-  unified()
-  .use(stringify)
-  .use(gfm)
-  .data('settings', settings || {})
-  .stringify(ast)
+export default function mdAstToString(ast, settings) {
+  return unified()
+    .use(stringify)
+    .use(gfm)
+    .data('settings', settings || {})
+    .stringify(ast)
+}

@@ -3,16 +3,28 @@
   "version": "0.1.2",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
-    "remark-gfm": "^1.0.0",
-    "remark-stringify": "^9.0.1",
-    "unified": "^9.2.1",
-    "unist-util-visit": "^2.0.3"
+    "remark-gfm": "^3.0.1",
+    "remark-stringify": "^10.0.2",
+    "unified": "^10.1.2",
+    "unist-util-visit": "^4.1.2"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "default": "./lib/index.js"
+      }
+    },
+    "./md_ast_to_string": {
+      "import": {
+        "default": "./lib/md_ast_to_string.js"
+      }
+    }
   },
   "devDependencies": {
-    "coffeescript": "^2.7.0",
+    "dedent": "^0.7.0",
     "mocha": "^10.2.0",
-    "remark-parse": "^9.0.0",
-    "remark-rehype": "^8.1.0",
+    "remark-parse": "^10.0.1",
+    "remark-rehype": "^10.1.0",
     "should": "^13.2.3"
   },
   "files": [
@@ -20,18 +32,23 @@
   ],
   "license": "MIT",
   "main": "lib/index.js",
+  "module": "lib/index.js",
   "mocha": {
     "throw-deprecation": true,
     "require": [
-      "should",
-      "coffeescript/register"
+      "should"
     ],
     "inline-diffs": true,
     "timeout": 40000,
     "reporter": "spec",
     "recursive": true
   },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  },
   "scripts": {
     "test": "mocha 'test/**/*.coffee'"
-  }
+  },
+  "type": "module"
 }
