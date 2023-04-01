@@ -1,0 +1,49 @@
+{
+  "name": "remark-table-of-content",
+  "version": "0.0.0",
+  "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
+  "dependencies": {
+    "@sindresorhus/slugify": "^2.2.0",
+    "mixme": "^0.5.9",
+    "rehype-stringify": "^9.0.3",
+    "remark-frontmatter": "^4.0.1",
+    "remark-parse": "^10.0.1",
+    "remark-read-frontmatter": "^0.1.5",
+    "remark-rehype": "^10.1.0",
+    "unist-util-visit": "^4.1.2"
+  },
+  "devDependencies": {
+    "dedent": "^0.7.0"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "default": "./lib/index.js"
+      }
+    }
+  },
+  "files": [
+    "/lib"
+  ],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "module": "lib/index.js",
+  "mocha": {
+    "throw-deprecation": true,
+    "require": [
+      "should"
+    ],
+    "inline-diffs": true,
+    "timeout": 40000,
+    "reporter": "spec",
+    "recursive": true
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  },
+  "scripts": {
+    "test": "mocha 'test/**/*.js'"
+  },
+  "type": "module"
+}
