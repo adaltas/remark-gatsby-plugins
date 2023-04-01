@@ -3,21 +3,21 @@
   "version": "0.1.6",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
-    "hast-util-to-text": "^2.0.1"
+    "hast-util-to-text": "^3.1.2"
   },
   "devDependencies": {
     "dedent": "^0.7.0",
     "mocha": "^10.2.0",
-    "rehype-stringify": "^8.0.0",
-    "remark-frontmatter": "^3.0.0",
-    "remark-parse": "^9.0.0",
+    "rehype-stringify": "^9.0.3",
+    "remark-frontmatter": "^4.0.1",
+    "remark-parse": "^10.0.1",
     "remark-read-frontmatter": "^0.1.5",
-    "remark-rehype": "^8.1.0",
+    "remark-rehype": "^10.1.0",
     "rollup": "^3.20.2",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-resolve": "^5.2.0",
     "should": "^13.2.3",
-    "unified": "^9.2.1"
+    "unified": "^10.1.2"
   },
   "exports": {
     ".": {

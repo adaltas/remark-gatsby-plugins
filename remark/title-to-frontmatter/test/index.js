@@ -1,11 +1,11 @@
 import dedent from 'dedent'
-import unified from 'unified'
+import { unified } from 'unified'
 import parseMarkdown from 'remark-parse'
 import remark2rehype from 'remark-rehype'
 import html from 'rehype-stringify'
 import extractFrontmatter from 'remark-frontmatter'
 import pluginReadFrontmatter from 'remark-read-frontmatter'
-import pluginTitleToFrontmatter from '../lib/index.js'
+import pluginTitleToFrontmatter from 'remark-title-to-frontmatter'
 
 describe('Extract title', () => {
   it('without frontmatter', async () => {
