@@ -1,9 +1,13 @@
 
-const visit = require('unist-util-visit');
-const {exec} = require('child_process');
-const path = require('path');
+import crypto from 'node:crypto'
+import { visit } from 'unist-util-visit'
+import { exec } from 'child_process'
+import path from 'path'
 
-module.exports = (options = {}) => {
+export const hash = (str) =>
+  crypto.createHash('md5').update(str, 'utf8').digest('hex')
+
+export default function publicImages (options = {}) {
   // Normalization
   if(!options.repo_local)
     throw Error('Required Property: public_images require the "repo_local" option')
@@ -78,6 +82,3 @@ module.exports = (options = {}) => {
     return res
   }
 }
-
-hash = (str) =>
-  require('crypto').createHash('md5').update(str, 'utf8').digest('hex')
