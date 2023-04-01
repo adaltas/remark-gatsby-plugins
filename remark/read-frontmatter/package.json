@@ -6,7 +6,7 @@
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
-    "coffeescript": "^2.7.0",
+    "dedent": "^0.7.0",
     "mocha": "^10.2.0",
     "rehype-stringify": "^8.0.0",
     "remark-frontmatter": "^3.0.0",
@@ -15,23 +15,35 @@
     "should": "^13.2.3",
     "unified": "^9.2.1"
   },
+  "exports": {
+    ".": {
+      "import": {
+        "default": "./lib/index.js"
+      }
+    }
+  },
   "files": [
     "/lib"
   ],
   "license": "MIT",
   "main": "lib/index.js",
+  "module": "lib/index.js",
   "mocha": {
     "throw-deprecation": true,
     "require": [
-      "should",
-      "coffeescript/register"
+      "should"
     ],
     "inline-diffs": true,
     "timeout": 40000,
     "reporter": "spec",
     "recursive": true
   },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  },
   "scripts": {
-    "test": "mocha 'test/**/*.coffee'"
-  }
+    "test": "mocha 'test/**/*.js'"
+  },
+  "type": "module"
 }

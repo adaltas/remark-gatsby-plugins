@@ -1,7 +1,7 @@
 
-const yaml = require('js-yaml')
+import yaml from 'js-yaml'
 
-module.exports = (options={}) => {
+export default function readFrontmatter(options={}) {
   if(!options.property){
     options.property = 'data'
   }

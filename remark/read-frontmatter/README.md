@@ -18,20 +18,20 @@ const html = require('rehype-stringify');
 const extractFrontmatter = require('remark-frontmatter');
 const pluginParseFrontmatter = require('remark-read-frontmatter');
 
-const {frontmatter} = unified()
-.use(parseMarkdown)
-.use(extractFrontmatter, ['yaml'])
-.use(pluginParseFrontmatter)
-.use(remark2rehype)
-.use(html)
-.processSync([
-  `---`,
-  `title: 'Article'`,
-  `lang: fr`,
-  `---`,
-].join('\n'));
+const {data} = unified()
+  .use(parseMarkdown)
+  .use(extractFrontmatter, ['yaml'])
+  .use(pluginParseFrontmatter)
+  .use(remark2rehype)
+  .use(html)
+  .processSync([
+    `---`,
+    `title: 'Article'`,
+    `lang: fr`,
+    `---`,
+  ].join('\n'));
 // Test output
-assert.deepEqual(frontmatter, {
+assert.deepEqual(data, {
   title: 'Article',
   lang: 'fr'
 });
