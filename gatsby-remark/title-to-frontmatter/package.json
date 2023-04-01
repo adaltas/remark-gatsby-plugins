@@ -8,7 +8,7 @@
     "mdast-util-to-hast": "^10.2.0"
   },
   "devDependencies": {
-    "coffeescript": "^2.7.0",
+    "dedent": "^0.7.0",
     "mocha": "^10.2.0",
     "remark": "^13.0.0",
     "should": "^13.2.3"
@@ -17,12 +17,11 @@
     "/lib"
   ],
   "license": "MIT",
-  "main": "index.js",
+  "main": "lib/index.js",
   "mocha": {
     "throw-deprecation": true,
     "require": [
-      "should",
-      "coffeescript/register"
+      "should"
     ],
     "inline-diffs": true,
     "timeout": 40000,
@@ -33,6 +32,6 @@
     "gatsby": "^4.0.0 || ^5.0.0"
   },
   "scripts": {
-    "test": "mocha 'test/**/*.coffee'"
+    "test": "mocha 'test/**/*.js'"
   }
 }

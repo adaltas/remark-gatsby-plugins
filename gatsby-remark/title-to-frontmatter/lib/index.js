@@ -4,12 +4,12 @@ const toHast = require('mdast-util-to-hast')
 const toText = require('hast-util-to-text')
 const toHtml = require('hast-util-to-html')
 
-module.exports = async (
+module.exports = async function titleToFrontMatter(
   { markdownNode, markdownAST },
   { include = [] }
-) => {
+) {
   const fileAbsolutePath = (
-    markdownNode.internal?.contentFilePath // gatsby-plugin-mdx style
+    (markdownNode.internal && markdownNode.internal.contentFilePath) // gatsby-plugin-mdx style
     ||
     markdownNode.fileAbsolutePath // gatsby-transformer-remark style
   )
@@ -24,7 +24,7 @@ module.exports = async (
   if(!markdownNode.frontmatter.noTitleToFrontmatter){
     if(markdownAST.children.length && markdownAST.children[0].type === 'heading' && markdownAST.children[0].depth === 1){
       if(!markdownNode.frontmatter.title){
-        hast = toHast(markdownAST.children[0])
+        const hast = toHast(markdownAST.children[0])
         markdownNode.frontmatter.title = toText(hast)
         markdownNode.frontmatter.titleHtml = toHtml(hast)
       }
