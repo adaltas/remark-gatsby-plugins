@@ -6,33 +6,54 @@
     "hast-util-to-text": "^2.0.1"
   },
   "devDependencies": {
-    "coffeescript": "^2.7.0",
+    "dedent": "^0.7.0",
     "mocha": "^10.2.0",
     "rehype-stringify": "^8.0.0",
     "remark-frontmatter": "^3.0.0",
     "remark-parse": "^9.0.0",
     "remark-read-frontmatter": "^0.1.5",
     "remark-rehype": "^8.1.0",
+    "rollup": "^3.20.2",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-node-resolve": "^5.2.0",
     "should": "^13.2.3",
     "unified": "^9.2.1"
   },
+  "exports": {
+    ".": {
+      "import": {
+        "default": "./lib/index.js"
+      },
+      "require": {
+        "default": "./dist/remark-title-to-frontmatter.cjs"
+      }
+    }
+  },
   "files": [
+    "/dist",
     "/lib"
   ],
   "license": "MIT",
-  "main": "lib/index.js",
+  "main": "dist/remark-title-to-frontmatter.cjs",
+  "module": "lib/index.js",
   "mocha": {
     "throw-deprecation": true,
     "require": [
-      "should",
-      "coffeescript/register"
+      "should"
     ],
     "inline-diffs": true,
     "timeout": 40000,
     "reporter": "spec",
     "recursive": true
   },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  },
   "scripts": {
-    "test": "mocha 'test/**/*.coffee'"
-  }
+    "build": "rollup -c",
+    "prerelease": "npm run build",
+    "test": "mocha 'test/**/*.js'"
+  },
+  "type": "module"
 }

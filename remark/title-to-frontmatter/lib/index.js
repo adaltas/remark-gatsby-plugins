@@ -1,7 +1,7 @@
 
-const toText = require('hast-util-to-text')
+import toText from 'hast-util-to-text'
 
-module.exports = (options={}) => {
+export default function titleToFrontMatter(options={}) {
   if(!options.property){
     options.property = 'data'
   }
