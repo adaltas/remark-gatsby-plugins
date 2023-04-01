@@ -1,11 +1,11 @@
 
-const path = require('path')
-const visit = require('unist-util-visit')
+import { visit } from 'unist-util-visit'
 
-module.exports = (options) =>
-  (tree, file) =>
+export default function linksAbsolute (options) {
+  return (tree, file) =>
     visit(tree, 'link', (node) => {
       if(options.baseURL && /^\//.test(node.url)){
         node.url = new URL(node.url, options.baseURL).href
       }
     })
+  }
