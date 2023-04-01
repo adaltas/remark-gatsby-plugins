@@ -48,7 +48,7 @@
     "singleQuote": true
   },
   "scripts": {
-    "test": "mocha 'test/**/*.coffee'"
+    "test": "mocha 'test/**/*.js'"
   },
   "type": "module"
 }
