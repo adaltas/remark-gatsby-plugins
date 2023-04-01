@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [1.3.1](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-title-to-frontmatter@1.3.0...gatsby-remark-title-to-frontmatter@1.3.1) (2023-04-01)
+
+**Note:** Version bump only for package gatsby-remark-title-to-frontmatter
+
+
+
+
+
 # [1.3.0](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-title-to-frontmatter@1.2.1...gatsby-remark-title-to-frontmatter@1.3.0) (2023-01-01)
 
 

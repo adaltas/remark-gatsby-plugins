@@ -1,6 +1,6 @@
 {
   "name": "remark-read-frontmatter",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "js-yaml": "^4.1.0"

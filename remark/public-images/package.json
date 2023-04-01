@@ -1,6 +1,6 @@
 {
   "name": "remark-public-images",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "unist-util-visit": "^4.1.2"

@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.2.1](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-snippet-url-prepare@0.2.0...gatsby-remark-snippet-url-prepare@0.2.1) (2023-04-01)
+
+**Note:** Version bump only for package gatsby-remark-snippet-url-prepare
+
+
+
+
+
 # [0.2.0](https://github.com/adaltas/remark-gatsby-plugins/compare/gatsby-remark-snippet-url-prepare@0.1.2...gatsby-remark-snippet-url-prepare@0.2.0) (2023-01-01)
 
 
