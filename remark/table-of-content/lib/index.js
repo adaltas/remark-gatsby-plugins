@@ -14,11 +14,28 @@ export default function remarkToc({
     const toc = []
     visit(tree, 'heading', function (node) {
       if (node.depth < depth_min || node.depth > depth_max) return
+      const title = node.children
+      .filter((child) => child.type === 'text' || child.type === 'strong' || child.type === 'emphasis' || child.type === 'inlineCode')
+      .map((child) => {
+          // when the text is bold or italic, the node.children[0] is not a text node but a strong or emphasis node
+          // so we need to check the type of the node.children[0] to get the text value
+          if (child.type === 'strong' || child.type === 'emphasis') {
+            // case strong AND emphasis (***italic bold***) : the node.children[0] as an embedded node with the type strong or emphasis
+            if (child.children[0].type === 'strong' || child.children[0].type === 'emphasis') {
+              return child.children[0].children[0].value;
+            }
+            return child.children[0].value;
+          } 
+          // but for inlineCode and text node, the value is directly in the child.value
+          return child.value;
+        })
+        .join('');
+      if (!title) return;
       toc.push({
-        title: node.children[0].value,
+        title: title,
         depth: node.depth,
-        anchor: slugify(node.children[0].value),
-      })
+        anchor: slugify(title),
+      });
     })
     let mount = vfile
     for(let i = 0; i < property.length - 1; i++){
