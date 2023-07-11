@@ -36,7 +36,7 @@ describe('Extract table of content', () => {
         ## Heading 2
         ### Heading 3
         #### Heading 4
-        `)
+      `)
     toc.should.eql([
       { title: 'Heading 2', depth: 2, anchor: 'heading-2' },
       { title: 'Heading 3', depth: 3, anchor: 'heading-3' }
@@ -54,8 +54,8 @@ describe('Extract table of content', () => {
         #### Heading 4
         ##### Heading 5
         ###### Heading 6
-        `)
-        toc.should.eql([
+      `)
+    toc.should.eql([
       { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
       { title: 'Heading 2', depth: 2, anchor: 'heading-2' },
       { title: 'Heading 3', depth: 3, anchor: 'heading-3' },
@@ -71,11 +71,11 @@ describe('Extract table of content', () => {
       .use(pluginToc, {property: ['data', 'toc']})
       .use(remark2rehype)
       .use(html).process(dedent`
-      # Heading 1
-      ## Heading 2
+        # Heading 1
+        ## Heading 2
       `)
-      data.should.eql({
-        toc: [
+    data.should.eql({
+      toc: [
         { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
         { title: 'Heading 2', depth: 2, anchor: 'heading-2' }
       ]
