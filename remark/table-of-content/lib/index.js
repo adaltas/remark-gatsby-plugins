@@ -1,6 +1,5 @@
 import { visit } from 'unist-util-visit'
 import slugify from '@sindresorhus/slugify'
-import { mutate } from 'mixme'
 
 export default function remarkToc({
   depth_min = 1,
