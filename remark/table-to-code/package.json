@@ -12,6 +12,9 @@
     ".": {
       "import": {
         "default": "./lib/index.js"
+      },
+      "require": {
+        "default": "./dist/remark-table-to-code.cjs"
       }
     },
     "./md_ast_to_string": {
@@ -25,13 +28,16 @@
     "mocha": "^10.2.0",
     "remark-parse": "^10.0.1",
     "remark-rehype": "^10.1.0",
+    "rollup": "^3.26.3",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-node-resolve": "^5.2.0",
     "should": "^13.2.3"
   },
   "files": [
     "/lib"
   ],
   "license": "MIT",
-  "main": "lib/index.js",
+  "main": "./dist/remark-table-to-code.cjs",
   "module": "lib/index.js",
   "mocha": {
     "throw-deprecation": true,
@@ -48,6 +54,8 @@
     "singleQuote": true
   },
   "scripts": {
+    "build": "rollup -c",
+    "prerelease": "npm run build",
     "test": "mocha 'test/**/*.js'"
   },
   "type": "module"
