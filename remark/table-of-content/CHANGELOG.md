@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.3.0](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-table-of-content@0.2.0...remark-table-of-content@0.3.0) (2023-07-17)
+
+
+### Features
+
+* **remark-table-of-content:** cjs generation ([92e9cf9](https://github.com/adaltas/remark-gatsby-plugins/commit/92e9cf9d499c0b20753e082d14e34ec293e71883))
+
+
+
+
+
 # [0.2.0](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-table-of-content@0.1.0...remark-table-of-content@0.2.0) (2023-07-12)
 
 

@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.2.0](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-table-to-code@0.1.3...remark-table-to-code@0.2.0) (2023-07-17)
+
+
+### Features
+
+* **remark-table-to-code:** cjs generation ([e6b05c3](https://github.com/adaltas/remark-gatsby-plugins/commit/e6b05c3b195de67eea8965ddedab3292af57cbde))
+
+
+
+
+
 ## [0.1.3](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-table-to-code@0.1.2...remark-table-to-code@0.1.3) (2023-04-01)
 
 **Note:** Version bump only for package remark-table-to-code

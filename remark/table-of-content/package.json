@@ -1,6 +1,6 @@
 {
   "name": "remark-table-of-content",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "@sindresorhus/slugify": "^2.2.0",
@@ -8,7 +8,7 @@
     "rehype-stringify": "^9.0.3",
     "remark-frontmatter": "^4.0.1",
     "remark-parse": "^10.0.1",
-    "remark-read-frontmatter": "^0.1.6",
+    "remark-read-frontmatter": "^0.2.0",
     "remark-rehype": "^10.1.0",
     "unist-util-visit": "^4.1.2"
   },

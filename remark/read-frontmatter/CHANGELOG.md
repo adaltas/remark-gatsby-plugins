@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.2.0](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-read-frontmatter@0.1.6...remark-read-frontmatter@0.2.0) (2023-07-17)
+
+
+### Features
+
+* **remark-read-frontmatter:** cjs generation ([42e9798](https://github.com/adaltas/remark-gatsby-plugins/commit/42e97989f0db0dca79155be0aef3d04f41a8dc49))
+
+
+
+
+
 ## [0.1.6](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-read-frontmatter@0.1.5...remark-read-frontmatter@0.1.6) (2023-04-01)
 
 **Note:** Version bump only for package remark-read-frontmatter

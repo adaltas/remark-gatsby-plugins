@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.3.0](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-links-absolute@0.2.4...remark-links-absolute@0.3.0) (2023-07-17)
+
+
+### Features
+
+* **remark-links-absolute:** cjs generation ([cbe5780](https://github.com/adaltas/remark-gatsby-plugins/commit/cbe57804813e069d46a46c04afc50bb9fc522e2c))
+
+
+
+
+
 ## [0.2.4](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-links-absolute@0.2.3...remark-links-absolute@0.2.4) (2023-04-01)
 
 **Note:** Version bump only for package remark-links-absolute
