@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.2.1](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-read-frontmatter@0.2.0...remark-read-frontmatter@0.2.1) (2023-07-17)
+
+
+### Bug Fixes
+
+* **remark-read-frontmatter:** invalid cjs path ([58d653a](https://github.com/adaltas/remark-gatsby-plugins/commit/58d653a5a6e6dbe558a7e404bee6c4fea77a6e9d))
+
+
+
+
+
 # [0.2.0](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-read-frontmatter@0.1.6...remark-read-frontmatter@0.2.0) (2023-07-17)
 
 
