@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.3.1](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-links-absolute@0.3.0...remark-links-absolute@0.3.1) (2023-07-18)
+
+**Note:** Version bump only for package remark-links-absolute
+
+
+
+
+
 # [0.3.0](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-links-absolute@0.2.4...remark-links-absolute@0.3.0) (2023-07-17)
 
 

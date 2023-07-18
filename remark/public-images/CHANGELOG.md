@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.0.7](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-public-images@0.0.6...remark-public-images@0.0.7) (2023-07-18)
+
+**Note:** Version bump only for package remark-public-images
+
+
+
+
+
 ## [0.0.6](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-public-images@0.0.5...remark-public-images@0.0.6) (2023-04-01)
 
 **Note:** Version bump only for package remark-public-images
