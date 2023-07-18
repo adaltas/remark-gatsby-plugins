@@ -5,6 +5,7 @@
  * @typedef {import('unist').Parent} Parent
  */
 
+
 /**
  * Generate an assertion from a test.
  *
@@ -173,6 +174,7 @@ function color(d) {
  * @typedef {import('unist').Parent} Parent
  * @typedef {import('unist-util-is').Test} Test
  */
+
 
 /**
  * Continue traversing as normal.
@@ -345,6 +347,7 @@ function toResult(value) {
  * @typedef {import('unist-util-is').Test} Test
  * @typedef {import('unist-util-visit-parents').VisitorResult} VisitorResult
  */
+
 
 /**
  * Visit nodes.

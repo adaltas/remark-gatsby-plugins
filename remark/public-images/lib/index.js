@@ -1,8 +1,8 @@
 
-import crypto from 'node:crypto'
+import crypto from 'crypto'
 import { visit } from 'unist-util-visit'
 import { exec } from 'child_process'
-import path from 'path'
+import path from 'node:path'
 
 export const hash = (str) =>
   crypto.createHash('md5').update(str, 'utf8').digest('hex')

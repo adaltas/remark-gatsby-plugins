@@ -9,6 +9,7 @@ var path$1 = require('path');
  * @typedef {import('unist').Parent} Parent
  */
 
+
 /**
  * Generate an assertion from a test.
  *
@@ -177,6 +178,7 @@ function color(d) {
  * @typedef {import('unist').Parent} Parent
  * @typedef {import('unist-util-is').Test} Test
  */
+
 
 /**
  * Continue traversing as normal.
@@ -350,6 +352,7 @@ function toResult(value) {
  * @typedef {import('unist-util-visit-parents').VisitorResult} VisitorResult
  */
 
+
 /**
  * Visit nodes.
  *
@@ -431,6 +434,10 @@ function bail(error) {
   }
 }
 
+function getDefaultExportFromCjs (x) {
+	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
+}
+
 /*!
  * Determine if an object is a Buffer
  *
@@ -442,6 +449,8 @@ var isBuffer = function isBuffer (obj) {
   return obj != null && obj.constructor != null &&
     typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj)
 };
+
+var isBuffer$1 = /*@__PURE__*/getDefaultExportFromCjs(isBuffer);
 
 var hasOwn = Object.prototype.hasOwnProperty;
 var toStr = Object.prototype.toString;
@@ -558,6 +567,8 @@ var extend = function extend() {
 	// Return the modified object
 	return target;
 };
+
+var extend$1 = /*@__PURE__*/getDefaultExportFromCjs(extend);
 
 function isPlainObject(value) {
 	if (typeof value !== 'object' || value === null) {
@@ -820,6 +831,7 @@ function index(value) {
  * @typedef {import('unist').Point} Point
  * @typedef {object & {type: string, position?: Position | undefined}} NodeLike
  */
+
 
 /**
  * Message.
@@ -1084,6 +1096,7 @@ function isUrl(fileUrlOrPath) {
  * @typedef {import('../index.js').Data} Data
  * @typedef {import('../index.js').Value} Value
  */
+
 
 /**
  * Order of setting (least specific to most), we need this because otherwise
@@ -1512,7 +1525,7 @@ function assertPath(path, name) {
  *   Whether `value` is a Node.js buffer.
  */
 function buffer(value) {
-  return isBuffer(value)
+  return isBuffer$1(value)
 }
 
 /**
@@ -1534,6 +1547,7 @@ function buffer(value) {
  * @property {Node} tree
  * @property {VFile} file
  */
+
 
 // Expose a frozen processor.
 const unified = base().freeze();
@@ -1591,7 +1605,7 @@ function base() {
       destination.use(...attachers[index]);
     }
 
-    destination.data(extend(true, {}, namespace));
+    destination.data(extend$1(true, {}, namespace));
 
     return destination
   }
@@ -1752,7 +1766,7 @@ function base() {
 
       if (entry) {
         if (isPlainObject(entry[1]) && isPlainObject(value)) {
-          value = extend(true, entry[1], value);
+          value = extend$1(true, entry[1], value);
         }
 
         entry[1] = value;
@@ -2099,7 +2113,7 @@ function looksLikeAVFile(value) {
  * @returns {value is VFileValue}
  */
 function looksLikeAVFileValue(value) {
-  return typeof value === 'string' || isBuffer(value)
+  return typeof value === 'string' || isBuffer$1(value)
 }
 
 /**
@@ -2342,6 +2356,7 @@ function listInScope(stack, list, none) {
  * @typedef {import('../types.js').Info} Info
  */
 
+
 /**
  * @param {Break} _
  * @param {Parent | undefined} _1
@@ -2457,6 +2472,7 @@ function checkFence(state) {
  * @typedef {import('../types.js').Map} Map
  */
 
+
 /**
  * @param {Code} node
  * @param {Parent | undefined} _
@@ -2553,6 +2569,7 @@ function checkQuote(state) {
  * @typedef {import('../types.js').State} State
  * @typedef {import('../types.js').Info} Info
  */
+
 
 /**
  * @param {Definition} node
@@ -2653,6 +2670,7 @@ function checkEmphasis(state) {
  * @typedef {import('../types.js').State} State
  * @typedef {import('../types.js').Info} Info
  */
+
 
 emphasis.peek = emphasisPeek;
 
@@ -2784,6 +2802,7 @@ function node(value) {
  * @typedef {import('../types.js').State} State
  */
 
+
 /**
  * @param {Heading} node
  * @param {State} state
@@ -2817,6 +2836,7 @@ function formatHeadingAsSetext(node, state) {
  * @typedef {import('../types.js').State} State
  * @typedef {import('../types.js').Info} Info
  */
+
 
 /**
  * @param {Heading} node
@@ -2917,6 +2937,7 @@ function htmlPeek() {
  * @typedef {import('../types.js').State} State
  * @typedef {import('../types.js').Info} Info
  */
+
 
 image.peek = imagePeek;
 
@@ -3092,6 +3113,7 @@ function patternCompile(pattern) {
  * @typedef {import('../types.js').State} State
  */
 
+
 inlineCode.peek = inlineCodePeek;
 
 /**
@@ -3169,6 +3191,7 @@ function inlineCodePeek() {
  * @typedef {import('../types.js').State} State
  */
 
+
 /**
  * @param {Link} node
  * @param {State} state
@@ -3204,6 +3227,7 @@ function formatLinkAsAutolink(node, state) {
  * @typedef {import('../types.js').Info} Info
  * @typedef {import('../types.js').Exit} Exit
  */
+
 
 link.peek = linkPeek;
 
@@ -3405,6 +3429,7 @@ function checkBullet(state) {
  * @typedef {import('../types.js').Options} Options
  */
 
+
 /**
  * @param {State} state
  * @returns {Exclude<Options['bullet'], null | undefined>}
@@ -3465,6 +3490,7 @@ function checkBulletOrdered(state) {
  * @typedef {import('../types.js').State} State
  * @typedef {import('../types.js').Options} Options
  */
+
 
 /**
  * @param {State} state
@@ -3528,6 +3554,7 @@ function checkRule(state) {
  * @typedef {import('../types.js').State} State
  * @typedef {import('../types.js').Info} Info
  */
+
 
 /**
  * @param {List} node
@@ -3667,6 +3694,7 @@ function checkListItemIndent(state) {
  * @typedef {import('../types.js').Info} Info
  */
 
+
 /**
  * @param {ListItem} node
  * @param {Parent | undefined} parent
@@ -3750,6 +3778,7 @@ function paragraph(node, _, state, info) {
  * @typedef {import('unist-util-is').AssertPredicate<PhrasingContent>} AssertPredicatePhrasing
  */
 
+
 /**
  * Check if the given value is *phrasing content*.
  *
@@ -3781,6 +3810,7 @@ const phrasing = /** @type {AssertPredicatePhrasing} */ (
  * @typedef {import('../types.js').State} State
  * @typedef {import('../types.js').Info} Info
  */
+
 
 /**
  * @param {Root} node
@@ -3826,6 +3856,7 @@ function checkStrong(state) {
  * @typedef {import('../types.js').State} State
  * @typedef {import('../types.js').Info} Info
  */
+
 
 strong.peek = strongPeek;
 
@@ -3914,6 +3945,7 @@ function checkRuleRepetition(state) {
  * @typedef {import('../types.js').State} State
  */
 
+
 /**
  * @param {ThematicBreak} _
  * @param {Parent | undefined} _1
@@ -3957,6 +3989,7 @@ const handle = {
 /**
  * @typedef {import('./types.js').Join} Join
  */
+
 
 /** @type {Array<Join>} */
 const join = [joinDefaults];
@@ -6375,6 +6408,7 @@ function decode($0, $1, $2) {
  * @typedef {import('../types.js').AssociationId} AssociationId
  */
 
+
 /**
  * Get an identifier from an association to match it to others.
  *
@@ -6630,6 +6664,7 @@ function indentLines(value, map) {
  * @typedef {import('../types.js').SafeConfig} SafeConfig
  */
 
+
 /**
  * Make a string safe for embedding in markdown constructs.
  *
@@ -6873,6 +6908,7 @@ function track(config) {
  * @typedef {import('./types.js').TrackFields} TrackFields
  */
 
+
 /**
  * Turn an mdast syntax tree into markdown.
  *
@@ -7042,6 +7078,7 @@ function safeBound(value, config) {
  * @typedef {Omit<ToMarkdownOptions, 'extensions'>} Options
  */
 
+
 /** @type {import('unified').Plugin<[Options]|void[], Node, string>} */
 function remarkStringify(options) {
   /** @type {import('unified').CompilerFunction<Node, string>} */
@@ -7121,6 +7158,7 @@ function splice(list, start, remove, items) {
  * @typedef {import('micromark-util-types').Construct} Construct
  * @typedef {import('micromark-util-types').HtmlExtension} HtmlExtension
  */
+
 
 const hasOwnProperty = {}.hasOwnProperty;
 
@@ -8547,6 +8585,7 @@ function tokenizeIndent(effects, ok, nok) {
  * @typedef {import('micromark-util-types').Event} Event
  */
 
+
 /**
  * @param {Options} [options]
  * @returns {Extension}
@@ -8705,6 +8744,7 @@ function gfmStrikethrough(options = {}) {
  * @typedef {import('micromark-util-types').State} State
  * @typedef {import('micromark-util-types').Token} Token
  */
+
 
 /** @type {Extension} */
 const gfmTable = {
@@ -9404,6 +9444,7 @@ function spaceThenNonSpace(effects, ok, nok) {
  * @typedef {import('micromark-extension-gfm-footnote').HtmlOptions} HtmlOptions
  */
 
+
 /**
  * Support GFM or markdown on github.com.
  *
@@ -9469,6 +9510,7 @@ function escapeStringRegexp(string) {
  * @typedef {import('unist-util-visit-parents').Test} Test
  * @typedef {import('unist-util-visit-parents').VisitorResult} VisitorResult
  */
+
 
 const own = {}.hasOwnProperty;
 
@@ -9725,6 +9767,7 @@ function toFunction(replace) {
  * @typedef {import('mdast-util-find-and-replace').ReplaceFunction} ReplaceFunction
  * @typedef {import('mdast-util-find-and-replace').RegExpMatchObject} RegExpMatchObject
  */
+
 
 /** @type {ConstructName} */
 const inConstruct = 'phrasing';
@@ -9992,6 +10035,7 @@ function previous(match, email) {
  * @typedef {import('mdast-util-to-markdown').Map} Map
  */
 
+
 footnoteReference.peek = footnoteReferencePeek;
 
 // To do: next major: rename `context` -> `state`, `safeOptions` to `info`, use
@@ -10193,6 +10237,7 @@ function map(line, index, blank) {
  * @typedef {import('mdast-util-to-markdown').Options} ToMarkdownExtension
  * @typedef {import('mdast-util-to-markdown').Handle} ToMarkdownHandle
  */
+
 
 // To do: next major: expose functions.
 // To do: next major: use `state`, state utilities.
@@ -10683,6 +10728,7 @@ function toAlignment(value) {
  * @typedef {import('mdast-util-to-markdown').SafeOptions} SafeOptions
  */
 
+
 // To do: next major: use `state` and `state` utilities from `mdast-util-to-markdown`.
 // To do: next major: use `defaultHandlers.inlineCode`.
 // To do: next major: expose functions.
@@ -10972,6 +11018,7 @@ function gfmTableToMarkdown(options) {
  * @typedef {import('mdast-util-to-markdown').Handle} ToMarkdownHandle
  */
 
+
 // To do: next major: rename `context` -> `state`, `safeOptions` -> `info`, use
 // `track` from `state`.
 // To do: next major: replace exports with functions.
@@ -11101,6 +11148,7 @@ function listItemWithTaskListItem(node, parent, context, safeOptions) {
  * @typedef {import('mdast-util-to-markdown').Options} ToMarkdownExtension
  */
 
+
 /**
  * Create an extension for `mdast-util-from-markdown` to enable GFM (autolink
  * literals, footnotes, strikethrough, tables, tasklists).
@@ -11145,6 +11193,7 @@ function gfmToMarkdown(options) {
  * @typedef {import('mdast').Root} Root
  * @typedef {import('micromark-extension-gfm').Options & import('mdast-util-gfm').Options} Options
  */
+
 
 /**
  * Plugin to support GFM (autolink literals, footnotes, strikethrough, tables, tasklists).

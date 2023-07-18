@@ -6,6 +6,8 @@
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.3",
+    "@rollup/plugin-node-resolve": "^15.1.0",
     "dedent": "^0.7.0",
     "mocha": "^10.2.0",
     "rehype-stringify": "^9.0.3",
@@ -13,8 +15,6 @@
     "remark-parse": "^10.0.1",
     "remark-rehype": "^10.1.0",
     "rollup": "^3.26.3",
-    "rollup-plugin-commonjs": "^10.1.0",
-    "rollup-plugin-node-resolve": "^5.2.0",
     "should": "^13.2.3",
     "unified": "^10.1.2"
   },
