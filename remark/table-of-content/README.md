@@ -11,8 +11,8 @@ It supports CommonJS and ES modules.
   The minimum heading level to include, default with heading 1 (`# Heading 1`).
 * `depth_max`, integer, default `3`
   The maximum heading level to include, default with heading 1 (`### Heading 3`).
-* `property`, string, default `toc`   
-  The [vfile](https://github.com/vfile/vfile) property name where to find the table of content array.
+* `property`, string|array(string), default `toc`   
+  The [vfile](https://github.com/vfile/vfile) property name where to find the table of content array. The value may be an array if the property is made of multiple levels.
 
 ## Simple usage
 
