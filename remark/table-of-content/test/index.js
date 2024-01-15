@@ -121,6 +121,25 @@ describe('Extract table of content', () => {
       })
     })
 
+    it('preserve value if `false`', async () => {
+      const { data } = await unified()
+        .use(parseMarkdown)
+        .use(extractFrontmatter, ['yaml'])
+        .use(pluginReadFrontmatter)
+        .use(pluginToc, {property: ['data', 'toc']})
+        .use(remark2rehype)
+        .use(html).process(dedent`
+          ---
+          toc: false
+          ---
+          # Heading 1
+          ## Heading 2
+        `)
+      data.should.eql({
+        toc: false
+      })
+    })
+
   })
 
 })

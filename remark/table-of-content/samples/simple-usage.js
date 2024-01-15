@@ -6,22 +6,18 @@ import remark2rehype from 'remark-rehype'
 import html from 'rehype-stringify'
 import pluginToc from '../lib/index.js'
 
+// Create a toc property
 const { toc } = await unified()
 .use(parseMarkdown)
-.use(pluginToc, {property: ['data', 'toc']})
+.use(pluginToc, {property: 'toc'})
 .use(remark2rehype)
 .use(html)
 .process(dedent`
-  ---
-  description: Using with frontmatter
-  ---
   # Heading 1
   ## Heading 2
 `)
-assert.deepEqual(toc, {
-  description: 'Using with frontmatter',
-  toc: [
-    { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
-    { title: 'Heading 2', depth: 2, anchor: 'heading-2' }
-  ]
-})
+// Validation
+assert.deepEqual(toc, [
+  { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
+  { title: 'Heading 2', depth: 2, anchor: 'heading-2' }
+])

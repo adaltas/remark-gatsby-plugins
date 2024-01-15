@@ -16,7 +16,7 @@ It supports CommonJS and ES modules.
 
 ## Simple usage
 
-This is a Remark plugin. As such, place the plugin after `remark-parse` and before `remark-rehype`.
+This is a Remark plugin. As such, place the plugin after `remark-parse` and before `remark-rehype`. Here is how to [return a `toc` property](./samples/simple-usage.js) with the table of content.
 
 ```js
 import assert from 'node:assert'
@@ -27,30 +27,26 @@ import remark2rehype from 'remark-rehype'
 import html from 'rehype-stringify'
 import pluginToc from '../lib/index.js'
 
+// Create a toc property
 const { toc } = await unified()
 .use(parseMarkdown)
-.use(pluginToc, {property: ['data', 'toc']})
+.use(pluginToc, {property: 'toc'})
 .use(remark2rehype)
 .use(html)
 .process(dedent`
-  ---
-  description: Using with frontmatter
-  ---
   # Heading 1
   ## Heading 2
 `)
-assert.deepEqual(toc, {
-  description: 'Using with frontmatter',
-  toc: [
-    { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
-    { title: 'Heading 2', depth: 2, anchor: 'heading-2' }
-  ]
-})
+// Validation
+assert.deepEqual(toc, [
+  { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
+  { title: 'Heading 2', depth: 2, anchor: 'heading-2' }
+])
 ```
 
 ## Using the `property` option
 
-The resulting array is returned with the `toc` property by default or any property of you like. For example, when used conjointly with the `remark-read-frontmatter` plugin, setting the `property` option to `['data', 'toc']` enriches the frontmatter `data` property.
+The resulting array is returned with the `toc` property by default or any property of you like. For example, when used conjointly with the `remark-read-frontmatter` plugin, setting the `property` option to `['data', 'toc']` [enriches the frontmatter `data` property](./samples/with-extract-frontmatter.js).
 
 
 ```js
@@ -86,3 +82,5 @@ assert.deepEqual(data, {
   ]
 })
 ```
+
+A value is preserved if the property is already exists in the vfile, for example in the frontmatter, 
