@@ -6,9 +6,9 @@ import html from 'rehype-stringify'
 import extractFrontmatter from 'remark-frontmatter'
 import pluginReadFrontmatter from 'remark-read-frontmatter'
 import pluginToc from '../lib/index.js'
-import { describe, it } from 'node:test'
 
 describe('Extract table of content', () => {
+
   it('default', async () => {
     const { toc } = await unified()
       .use(parseMarkdown)
@@ -26,6 +26,7 @@ describe('Extract table of content', () => {
       { title: 'Heading 3', depth: 3, anchor: 'heading-3' }
     ])
   })
+
   it('`depth_min` option', async () => {
     const { toc } = await unified()
       .use(parseMarkdown)
@@ -42,6 +43,7 @@ describe('Extract table of content', () => {
       { title: 'Heading 3', depth: 3, anchor: 'heading-3' }
     ])
   })
+
   it('`depth_max` option', async () => {
     const { toc } = await unified()
       .use(parseMarkdown)
@@ -63,24 +65,7 @@ describe('Extract table of content', () => {
       { title: 'Heading 5', depth: 5, anchor: 'heading-5' }
     ])
   })
-  it('`property` option', async () => {
-    const { data } = await unified()
-      .use(parseMarkdown)
-      .use(extractFrontmatter, ['yaml'])
-      .use(pluginReadFrontmatter)
-      .use(pluginToc, {property: ['data', 'toc']})
-      .use(remark2rehype)
-      .use(html).process(dedent`
-        # Heading 1
-        ## Heading 2
-      `)
-    data.should.eql({
-      toc: [
-        { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
-        { title: 'Heading 2', depth: 2, anchor: 'heading-2' }
-      ]
-    })
-  })
+
   it('heading with styling', async () => {
     const { toc } = await unified()
       .use(parseMarkdown)
@@ -114,4 +99,28 @@ describe('Extract table of content', () => {
       { title: 'Heading 3 code();', depth: 3, anchor: 'heading-3-code' }
     ])
   })
+
+  describe('option `property`', () => {
+
+    it('multi-level property', async () => {
+      const { data } = await unified()
+        .use(parseMarkdown)
+        .use(extractFrontmatter, ['yaml'])
+        .use(pluginReadFrontmatter)
+        .use(pluginToc, {property: ['data', 'toc']})
+        .use(remark2rehype)
+        .use(html).process(dedent`
+          # Heading 1
+          ## Heading 2
+        `)
+      data.should.eql({
+        toc: [
+          { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
+          { title: 'Heading 2', depth: 2, anchor: 'heading-2' }
+        ]
+      })
+    })
+
+  })
+
 })
