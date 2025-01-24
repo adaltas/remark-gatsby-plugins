@@ -1,5 +1,4 @@
-
-# Package `gatsby-remark-title-to-frontmatter`
+# Gatsby Remark title to frontmatter
 
 This package is a Gatsby module to move the title from the Markdown content to the frontmatter object.
 
@@ -24,24 +23,28 @@ Open your `gatsby-config.js` file and register the plugin:
 ```js
 export default {
   siteMetadata: {
-    title: 'Gatsby website',
+    title: "Gatsby website",
   },
-  plugins: [{
+  plugins: [
+    {
       // Gatsby plugins registration goes here
-    }, {
+    },
+    {
       resolve: `gatsby-transformer-remark`,
       options: {
         // Remark configuration goes here
-        plugins: [{
-          resolve: 'gatsby-remark-title-to-frontmatter',
-          options: {
-            include: [
-              '**/*.md', // an include glob to match against
-            ],
+        plugins: [
+          {
+            resolve: "gatsby-remark-title-to-frontmatter",
+            options: {
+              include: [
+                "**/*.md", // an include glob to match against
+              ],
+            },
           },
-        }],
+        ],
       },
-    }
+    },
   ],
-}
+};
 ```

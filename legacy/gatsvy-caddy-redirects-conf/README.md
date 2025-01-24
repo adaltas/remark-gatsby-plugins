@@ -1,3 +1,3 @@
-# Package `gatsby-caddy-redirects-conf`
+# Gatsby Caddy redirect configuration generation
 
 Generate a Caddy compatible config file.

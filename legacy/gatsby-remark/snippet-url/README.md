@@ -1,5 +1,4 @@
-
-# Package `gatsby-remark-snippet-url`
+# Gatsby Remark snippet URL
 
 Display a link next to the source code when it is embeded from a source file.
 
@@ -7,12 +6,12 @@ The plugin works conjointly with the `gatsby-remark-embed-snippet` and `gatsby-r
 
 Options are:
 
-* `include` (array)
+- `include` (array)
   Globing expression of paths matching the file path, default to all files, for example `**/*.md`.
-* `message` (string|function)   
+- `message` (string|function)
   The message inside a link. If defined as a string, `{{FILE}}` is replaced with
   the embed file name.
-* `url` (string|function)   
+- `url` (string|function)
   The URL of the link. If defined as a string, `{{FILE}}` is replaced with
   the embed file name.
 

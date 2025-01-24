@@ -1,5 +1,5 @@
 
-# Plugin `remark-table-of-content`
+# Remark table of content
 
 This is a Remark plugin to extract a table of content from your Markdown file.
 
@@ -11,7 +11,7 @@ It supports CommonJS and ES modules.
   The minimum heading level to include, default with heading 1 (`# Heading 1`).
 * `depth_max`, integer, default `3`
   The maximum heading level to include, default with heading 1 (`### Heading 3`).
-* `property`, string|array(string), default `toc`   
+* `property`, string|array(string), default `toc`
   The [vfile](https://github.com/vfile/vfile) property name where to find the table of content array. The value may be an array if the property is made of multiple levels.
 
 ## Simple usage
@@ -83,4 +83,4 @@ assert.deepEqual(data, {
 })
 ```
 
-A value is preserved if the property is already exists in the vfile, for example in the frontmatter, 
+A value is preserved if the property is already exists in the vfile, for example in the frontmatter,

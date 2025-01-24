@@ -1,5 +1,5 @@
 
-# Public images
+# Remark Public images
 
 Upload every image present on the markdown article into a public GIT repository and update the `src` image attribute to reflect the new public URL.
 
@@ -22,7 +22,7 @@ Upload every image present on the markdown article into a public GIT repository 
 
 ```js
 {
-  
+
   "plugin": require('remark-public_images'),
   "settings": {
     "target": `${require('os').homedir()}/.medium_git`,
