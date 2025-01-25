@@ -49,10 +49,6 @@
     "reporter": "spec",
     "recursive": true
   },
-  "prettier": {
-    "semi": false,
-    "singleQuote": true
-  },
   "scripts": {
     "build": "rollup -c",
     "prerelease": "npm run build",

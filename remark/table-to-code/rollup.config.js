@@ -1,14 +1,14 @@
-import commonjs from '@rollup/plugin-commonjs'
-import nodeResolve from '@rollup/plugin-node-resolve'
-import pkg from './package.json' with { type: 'json' }
+import commonjs from "@rollup/plugin-commonjs";
+import nodeResolve from "@rollup/plugin-node-resolve";
+import pkg from "./package.json" with { type: "json" };
 
 export default {
-  input: 'lib/index.js',
+  input: "lib/index.js",
   output: [
     {
       file: `dist/${pkg.name}.cjs`,
-      format: 'cjs',
+      format: "cjs",
     },
   ],
   plugins: [commonjs(), nodeResolve({ preferBuiltins: true })],
-}
+};

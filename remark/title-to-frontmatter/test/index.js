@@ -1,32 +1,32 @@
-import dedent from 'dedent'
-import { unified } from 'unified'
-import parseMarkdown from 'remark-parse'
-import remark2rehype from 'remark-rehype'
-import html from 'rehype-stringify'
-import extractFrontmatter from 'remark-frontmatter'
-import pluginReadFrontmatter from 'remark-read-frontmatter'
-import pluginTitleToFrontmatter from 'remark-title-to-frontmatter'
+import dedent from "dedent";
+import { unified } from "unified";
+import parseMarkdown from "remark-parse";
+import remark2rehype from "remark-rehype";
+import html from "rehype-stringify";
+import extractFrontmatter from "remark-frontmatter";
+import pluginReadFrontmatter from "remark-read-frontmatter";
+import pluginTitleToFrontmatter from "remark-title-to-frontmatter";
 
-describe('Extract title', function () {
-  it('without frontmatter', async function () {
+describe("Extract title", function () {
+  it("without frontmatter", async function () {
     const { data } = await unified()
       .use(parseMarkdown)
-      .use(extractFrontmatter, ['yaml'])
+      .use(extractFrontmatter, ["yaml"])
       .use(pluginReadFrontmatter)
       .use(pluginTitleToFrontmatter)
       .use(remark2rehype)
       .use(html).process(dedent`
         # My title
-      `)
+      `);
     data.should.eql({
-      title: 'My title',
-    })
-  })
+      title: "My title",
+    });
+  });
 
-  it('with frontmatter', async function () {
+  it("with frontmatter", async function () {
     const { data } = await unified()
       .use(parseMarkdown)
-      .use(extractFrontmatter, ['yaml'])
+      .use(extractFrontmatter, ["yaml"])
       .use(pluginReadFrontmatter)
       .use(pluginTitleToFrontmatter)
       .use(remark2rehype)
@@ -36,17 +36,17 @@ describe('Extract title', function () {
          ---
 
          # My title
-      `)
+      `);
     data.should.eql({
-      lang: 'fr',
-      title: 'My title',
-    })
-  })
+      lang: "fr",
+      title: "My title",
+    });
+  });
 
-  it('no title', async function () {
+  it("no title", async function () {
     const { data } = await unified()
       .use(parseMarkdown)
-      .use(extractFrontmatter, ['yaml'])
+      .use(extractFrontmatter, ["yaml"])
       .use(pluginReadFrontmatter)
       .use(pluginTitleToFrontmatter)
       .use(remark2rehype)
@@ -56,28 +56,28 @@ describe('Extract title', function () {
         ---
 
         hello
-      `)
+      `);
     data.should.eql({
-      lang: 'fr',
-    })
-  })
+      lang: "fr",
+    });
+  });
 
-  it('no frontmatter, no content', async function () {
+  it("no frontmatter, no content", async function () {
     const { data } = await unified()
       .use(parseMarkdown)
-      .use(extractFrontmatter, ['yaml'])
+      .use(extractFrontmatter, ["yaml"])
       .use(pluginReadFrontmatter)
       .use(pluginTitleToFrontmatter)
       .use(remark2rehype)
       .use(html)
-      .process('')
-    data.should.eql({})
-  })
+      .process("");
+    data.should.eql({});
+  });
 
-  it('with frontmatter, no content', async function () {
+  it("with frontmatter, no content", async function () {
     const { data } = await unified()
       .use(parseMarkdown)
-      .use(extractFrontmatter, ['yaml'])
+      .use(extractFrontmatter, ["yaml"])
       .use(pluginReadFrontmatter)
       .use(pluginTitleToFrontmatter)
       .use(remark2rehype)
@@ -85,25 +85,25 @@ describe('Extract title', function () {
       ---
       lang: fr
       ---
-    `)
+    `);
     data.should.eql({
-      lang: 'fr',
-    })
-  })
+      lang: "fr",
+    });
+  });
 
-  it('option `property`', async function () {
+  it("option `property`", async function () {
     const { data, test } = await unified()
       .use(parseMarkdown)
-      .use(extractFrontmatter, ['yaml'])
+      .use(extractFrontmatter, ["yaml"])
       .use(pluginReadFrontmatter)
-      .use(pluginTitleToFrontmatter, { property: 'test' })
+      .use(pluginTitleToFrontmatter, { property: "test" })
       .use(remark2rehype)
       .use(html).process(dedent`
         # My title
-      `)
-    data.should.eql({})
+      `);
+    data.should.eql({});
     test.should.eql({
-      title: 'My title',
-    })
-  })
-})
+      title: "My title",
+    });
+  });
+});

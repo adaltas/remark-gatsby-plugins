@@ -43,10 +43,6 @@
     "reporter": "spec",
     "recursive": true
   },
-  "prettier": {
-    "semi": false,
-    "singleQuote": true
-  },
   "scripts": {
     "build": "rollup -c",
     "test": "mocha 'test/**/*.js'"
