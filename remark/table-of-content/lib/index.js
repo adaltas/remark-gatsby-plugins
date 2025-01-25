@@ -4,33 +4,35 @@ import { is_object_literal } from 'mixme'
 
 const get = (obj, keys, strict = false) => {
   for (const key of keys) {
-    if (obj.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
       obj = obj[key]
     } else if (!strict) {
       return undefined
     } else {
-      throw Error('REMARK_TABLE_OF_CONTENT: property does not exists in strict mode.')
+      throw Error(
+        'REMARK_TABLE_OF_CONTENT: property does not exists in strict mode.',
+      )
     }
   }
   return obj
 }
 
 const set = (obj, keys, value, overwrite = false) => {
-  if( obj === null || typeof obj !== 'object' ) {
+  if (obj === null || typeof obj !== 'object') {
     throw Error('REMARK_TABLE_OF_CONTENT: argument is not an object.')
   }
   for (let i = 0; i < keys.length; i++) {
     const last = i === keys.length - 1
     const key = keys[i]
     if (!last) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         // Move into the child
         if (is_object_literal(obj[key])) {
           obj = obj[key]
         } else {
           // Never overwrite a parent
           throw Error(
-            'REMARK_TABLE_OF_CONTENT: cannot overwrite parent property.'
+            'REMARK_TABLE_OF_CONTENT: cannot overwrite parent property.',
           )
         }
       } else {
@@ -39,7 +41,7 @@ const set = (obj, keys, value, overwrite = false) => {
         obj = obj[key]
       }
     } else {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         // Move into the child
         if (overwrite) {
           obj[key] = value
@@ -75,7 +77,7 @@ export default function remarkToc({
             child.type === 'text' ||
             child.type === 'strong' ||
             child.type === 'emphasis' ||
-            child.type === 'inlineCode'
+            child.type === 'inlineCode',
         )
         .map((child) => {
           // when the text is bold or italic, the node.children[0] is not a text node but a strong or emphasis node

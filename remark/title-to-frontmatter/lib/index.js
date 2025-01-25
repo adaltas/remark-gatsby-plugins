@@ -1,4 +1,3 @@
-
 import { toText } from 'hast-util-to-text'
 
 export default function titleToFrontMatter(options = {}) {

@@ -7,9 +7,8 @@ import extractFrontmatter from 'remark-frontmatter'
 import pluginReadFrontmatter from 'remark-read-frontmatter'
 import pluginToc from '../lib/index.js'
 
-describe('Extract table of content', () => {
-
-  it('default', async () => {
+describe('Extract table of content', function () {
+  it('default', async function () {
     const { toc } = await unified()
       .use(parseMarkdown)
       .use(pluginToc)
@@ -23,11 +22,11 @@ describe('Extract table of content', () => {
     toc.should.eql([
       { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
       { title: 'Heading 2', depth: 2, anchor: 'heading-2' },
-      { title: 'Heading 3', depth: 3, anchor: 'heading-3' }
+      { title: 'Heading 3', depth: 3, anchor: 'heading-3' },
     ])
   })
 
-  it('`depth_min` option', async () => {
+  it('`depth_min` option', async function () {
     const { toc } = await unified()
       .use(parseMarkdown)
       .use(pluginToc, { depth_min: 2 })
@@ -40,11 +39,11 @@ describe('Extract table of content', () => {
       `)
     toc.should.eql([
       { title: 'Heading 2', depth: 2, anchor: 'heading-2' },
-      { title: 'Heading 3', depth: 3, anchor: 'heading-3' }
+      { title: 'Heading 3', depth: 3, anchor: 'heading-3' },
     ])
   })
 
-  it('`depth_max` option', async () => {
+  it('`depth_max` option', async function () {
     const { toc } = await unified()
       .use(parseMarkdown)
       .use(pluginToc, { depth_max: 5 })
@@ -62,11 +61,11 @@ describe('Extract table of content', () => {
       { title: 'Heading 2', depth: 2, anchor: 'heading-2' },
       { title: 'Heading 3', depth: 3, anchor: 'heading-3' },
       { title: 'Heading 4', depth: 4, anchor: 'heading-4' },
-      { title: 'Heading 5', depth: 5, anchor: 'heading-5' }
+      { title: 'Heading 5', depth: 5, anchor: 'heading-5' },
     ])
   })
 
-  it('heading with styling', async () => {
+  it('heading with styling', async function () {
     const { toc } = await unified()
       .use(parseMarkdown)
       .use(pluginToc)
@@ -90,24 +89,31 @@ describe('Extract table of content', () => {
       { title: 'Heading 2', depth: 2, anchor: 'heading-2' },
       { title: 'Heading 2 italic', depth: 2, anchor: 'heading-2-italic' },
       { title: 'Heading 2 bold', depth: 2, anchor: 'heading-2-bold' },
-      { title: 'Heading 2 italic bold', depth: 2, anchor: 'heading-2-italic-bold' },
+      {
+        title: 'Heading 2 italic bold',
+        depth: 2,
+        anchor: 'heading-2-italic-bold',
+      },
       { title: 'Heading 2 code();', depth: 2, anchor: 'heading-2-code' },
       { title: 'Heading 3', depth: 3, anchor: 'heading-3' },
       { title: 'Heading 3 italic', depth: 3, anchor: 'heading-3-italic' },
       { title: 'Heading 3 bold', depth: 3, anchor: 'heading-3-bold' },
-      { title: 'Heading 3 italic bold', depth: 3, anchor: 'heading-3-italic-bold' },
-      { title: 'Heading 3 code();', depth: 3, anchor: 'heading-3-code' }
+      {
+        title: 'Heading 3 italic bold',
+        depth: 3,
+        anchor: 'heading-3-italic-bold',
+      },
+      { title: 'Heading 3 code();', depth: 3, anchor: 'heading-3-code' },
     ])
   })
 
-  describe('option `property`', () => {
-
-    it('multi-level property', async () => {
+  describe('option `property`', function () {
+    it('multi-level property', async function () {
       const { data } = await unified()
         .use(parseMarkdown)
         .use(extractFrontmatter, ['yaml'])
         .use(pluginReadFrontmatter)
-        .use(pluginToc, {property: ['data', 'toc']})
+        .use(pluginToc, { property: ['data', 'toc'] })
         .use(remark2rehype)
         .use(html).process(dedent`
           # Heading 1
@@ -116,17 +122,17 @@ describe('Extract table of content', () => {
       data.should.eql({
         toc: [
           { title: 'Heading 1', depth: 1, anchor: 'heading-1' },
-          { title: 'Heading 2', depth: 2, anchor: 'heading-2' }
-        ]
+          { title: 'Heading 2', depth: 2, anchor: 'heading-2' },
+        ],
       })
     })
 
-    it('preserve value if `false`', async () => {
+    it('preserve value if `false`', async function () {
       const { data } = await unified()
         .use(parseMarkdown)
         .use(extractFrontmatter, ['yaml'])
         .use(pluginReadFrontmatter)
-        .use(pluginToc, {property: ['data', 'toc']})
+        .use(pluginToc, { property: ['data', 'toc'] })
         .use(remark2rehype)
         .use(html).process(dedent`
           ---
@@ -136,10 +142,8 @@ describe('Extract table of content', () => {
           ## Heading 2
         `)
       data.should.eql({
-        toc: false
+        toc: false,
       })
     })
-
   })
-
 })

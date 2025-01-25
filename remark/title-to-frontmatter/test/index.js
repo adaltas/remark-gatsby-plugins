@@ -7,8 +7,8 @@ import extractFrontmatter from 'remark-frontmatter'
 import pluginReadFrontmatter from 'remark-read-frontmatter'
 import pluginTitleToFrontmatter from 'remark-title-to-frontmatter'
 
-describe('Extract title', () => {
-  it('without frontmatter', async () => {
+describe('Extract title', function () {
+  it('without frontmatter', async function () {
     const { data } = await unified()
       .use(parseMarkdown)
       .use(extractFrontmatter, ['yaml'])
@@ -23,7 +23,7 @@ describe('Extract title', () => {
     })
   })
 
-  it('with frontmatter', async () => {
+  it('with frontmatter', async function () {
     const { data } = await unified()
       .use(parseMarkdown)
       .use(extractFrontmatter, ['yaml'])
@@ -43,7 +43,7 @@ describe('Extract title', () => {
     })
   })
 
-  it('no title', async () => {
+  it('no title', async function () {
     const { data } = await unified()
       .use(parseMarkdown)
       .use(extractFrontmatter, ['yaml'])
@@ -54,7 +54,7 @@ describe('Extract title', () => {
         ---
         lang: fr
         ---
-        
+
         hello
       `)
     data.should.eql({
@@ -62,7 +62,7 @@ describe('Extract title', () => {
     })
   })
 
-  it('no frontmatter, no content', async () => {
+  it('no frontmatter, no content', async function () {
     const { data } = await unified()
       .use(parseMarkdown)
       .use(extractFrontmatter, ['yaml'])
@@ -74,7 +74,7 @@ describe('Extract title', () => {
     data.should.eql({})
   })
 
-  it('with frontmatter, no content', async () => {
+  it('with frontmatter, no content', async function () {
     const { data } = await unified()
       .use(parseMarkdown)
       .use(extractFrontmatter, ['yaml'])
@@ -91,7 +91,7 @@ describe('Extract title', () => {
     })
   })
 
-  it('option `property`', async () => {
+  it('option `property`', async function () {
     const { data, test } = await unified()
       .use(parseMarkdown)
       .use(extractFrontmatter, ['yaml'])

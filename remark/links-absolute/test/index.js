@@ -6,8 +6,8 @@ import html from 'rehype-stringify'
 import pluginLinksAbsolute from 'remark-links-absolute'
 import format from 'rehype-format'
 
-describe('Normalize absolute links', () => {
-  it('simple', async () => {
+describe('Normalize absolute links', function () {
+  it('simple', async function () {
     const { value } = await unified()
       .use(parseMarkdown)
       .use(pluginLinksAbsolute, { baseURL: 'http://www.adaltas.com' })

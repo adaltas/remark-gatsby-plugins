@@ -6,16 +6,14 @@ import remark2rehype from 'remark-rehype'
 import html from 'rehype-stringify'
 import pluginTableToCode from 'remark-table-to-code'
 
-describe('Markdown table to AST', () => {
-  
-  it('simple', async () => {
-    const {value} = await unified()
+describe('Markdown table to AST', function () {
+  it('simple', async function () {
+    const { value } = await unified()
       .use(markdown)
       .use(gfm)
       .use(pluginTableToCode)
       .use(remark2rehype)
-      .use(html)
-      .process(dedent`
+      .use(html).process(dedent`
         | 123 | b  |
         |-----|----|
         | 1   | ab |

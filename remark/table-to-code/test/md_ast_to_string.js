@@ -4,8 +4,8 @@ import remark2rehype from 'remark-rehype'
 import html from 'rehype-stringify'
 import md_ast_to_string from 'remark-table-to-code/md_ast_to_string'
 
-describe('Convert an AST to a string', () => {
-  it('simple', async () => {
+describe('Convert an AST to a string', function () {
+  it('simple', async function () {
     const { value } = await unified()
       .use(parse)
       .use(() => {
