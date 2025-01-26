@@ -8,6 +8,7 @@ export const hash = (str) =>
 
 export default function publicImages(options = {}) {
   // Normalization
+  options.branch ??= "main";
   if (!options.repo_local)
     throw Error(
       'Required Property: public_images require the "repo_local" option',
@@ -50,7 +51,7 @@ export default function publicImages(options = {}) {
           `[ -d ${options.repo_local}/.git ] || git init`,
           `git remote get-url origin || git remote add origin ${options.repo_public}`,
           // Pull in case the remote repo contains changes
-          `git show-ref --verify --quiet refs/heads/master && git pull origin master`,
+          `git show-ref --verify --quiet refs/heads/main && git pull origin main`,
           `if [ ! -f .gitignore ]; then`,
           `cat <<-GITIGNORE >.gitignore`,
           `.*`,
@@ -58,7 +59,7 @@ export default function publicImages(options = {}) {
           `GITIGNORE`,
           `  git add .gitignore`,
           `  git commit -m "ignore hidden files"`,
-          `  git push origin master`,
+          `  git push origin main`,
           `fi`,
           `# Reset if option is activated and if there is more than the first initial commit`,
           `reset=$([ ! -z '${options.reset ? "1" : ""}' ] && [ \`git rev-list HEAD --count\` -gt '1' ] && echo '1' || echo '')`,
@@ -78,7 +79,7 @@ export default function publicImages(options = {}) {
           `  git commit -m 'upload new images'`,
           `fi`,
           `force=$([ ! -z "$reset" ] && echo '-f' || echo '')`,
-          `git push $force origin master`,
+          `git push $force origin main`,
         ].join("\n"),
         (err) => (err ? reject(err) : resolve()),
       );

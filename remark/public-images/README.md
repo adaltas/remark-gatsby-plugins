@@ -1,12 +1,12 @@
-
 # Remark Public images
 
 Upload every image present on the markdown article into a public GIT repository and update the `src` image attribute to reflect the new public URL.
 
 ## Options
 
-- `base_url` ()\
+- `base_url` ()  
   Base public Git URL use to view raw data file.
+- `branch` (string, `main`)
 - `location` ()\
   Convert the image path into a path inside the local repository.
 - `repo_public` ()\
@@ -18,11 +18,10 @@ Upload every image present on the markdown article into a public GIT repository 
 - `repo_local` ()\
   Address of the local Git directory.
 
-## Exemple
+## Options exemple
 
 ```js
 {
-
   "plugin": require('remark-public_images'),
   "settings": {
     "target": `${require('os').homedir()}/.medium_git`,

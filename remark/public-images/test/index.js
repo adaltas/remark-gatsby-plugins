@@ -10,39 +10,34 @@ import pluginPublicImages, { hash } from "remark-public-images";
 
 describe("Public images", function () {
   it("simple", async function () {
+    const tmpdir = `${os.tmpdir()}/remark_public_images`;
     const config = {
       // repo_local was target
-      repo_local: `${os.tmpdir()}/remark_public_images/local`,
+      repo_local: `${tmpdir}/local`,
       // repo_public was repository
-      repo_public: `${os.tmpdir()}/remark_public_images/public`,
+      repo_public: `${tmpdir}/public`,
       base_url: "https://domain.com/repo/master/",
       reset: true,
-      source: `${os.tmpdir()}/remark_public_images/article/index.md`,
+      source: `${tmpdir}/article/index.md`,
     };
     const content = "![Image 1](./image_1.png)";
     const content_image_1 = "R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs";
     await new Promise((resolve, reject) => {
       exec(
         dedent`
-        rm -r ${os.tmpdir()}/remark_public_images
-        mkdir ${os.tmpdir()}/remark_public_images
-        mkdir ${os.tmpdir()}/remark_public_images/article
-        mkdir ${os.tmpdir()}/remark_public_images/public
-        cd ${os.tmpdir()}/remark_public_images/public
+        rm -r ${tmpdir}
+        mkdir ${tmpdir}
+        mkdir ${tmpdir}/article
+        mkdir ${tmpdir}/public
+        cd ${tmpdir}/public
         git init --bare
       `,
-        (err) => {
-          err ? reject(err) : resolve();
-        },
+        (err) => (err ? reject(err) : resolve()),
       );
     });
+    await fs.writeFile(`${tmpdir}/article/index.md`, content, "ascii");
     await fs.writeFile(
-      `${os.tmpdir()}/remark_public_images/article/index.md`,
-      content,
-      "ascii",
-    );
-    await fs.writeFile(
-      `${os.tmpdir()}/remark_public_images/article/image_1.png`,
+      `${tmpdir}/article/image_1.png`,
       content_image_1,
       "base64",
     );
