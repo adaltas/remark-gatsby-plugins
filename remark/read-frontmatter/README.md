@@ -5,9 +5,9 @@ Remark Read Frontmatter is a Remark plugin written in TypeScript with native for
 The plugin parse the extracted frontmatter object by [`remark-frontmatter`](https://github.com/remarkjs/remark-frontmatter) and insert its properties in the vfile `data` object.
 Place this plugins after `remark-frontmatter` and before `remark-rehype`.
 
-## JavaScript example
+## Example
 
-See [example](https://github.com/adaltas/remark/blob/master/parse-frontmater/sample/index.js):
+Beside the file extension, the [code example](https://github.com/adaltas/remark/blob/master/parse-frontmater/sample/index.ts) is identical in JavaScript and TypeScript.
 
 ```js
 import assert from "assert";
@@ -16,7 +16,8 @@ import parseMarkdown from "remark-parse";
 import remark2rehype from "remark-rehype";
 import html from "rehype-stringify";
 import extractFrontmatter from "remark-frontmatter";
-const pluginParseFrontmatter = require("remark-read-frontmatter");
+// Remark Read Frontmatter import
+import pluginParseFrontmatter from "remark-read-frontmatter";
 
 const { data } = unified()
   .use(parseMarkdown)
