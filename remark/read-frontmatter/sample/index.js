@@ -1,10 +1,10 @@
-const assert = require("assert");
-const unified = require("unified");
-const parseMarkdown = require("remark-parse");
-const remark2rehype = require("remark-rehype");
-const html = require("rehype-stringify");
-const extractFrontmatter = require("remark-frontmatter");
-const pluginParseFrontmatter = require("../lib");
+import assert from "assert";
+import { unified } from "unified";
+import parseMarkdown from "remark-parse";
+import remark2rehype from "remark-rehype";
+import html from "rehype-stringify";
+import extractFrontmatter from "remark-frontmatter";
+import pluginParseFrontmatter from "../dist/index.js";
 
 const { data } = unified()
   .use(parseMarkdown)
@@ -12,8 +12,16 @@ const { data } = unified()
   .use(pluginParseFrontmatter)
   .use(remark2rehype)
   .use(html)
-  .processSync([`---`, `title: 'Article'`, `lang: fr`, `---`].join("\n"));
-// Test output
+  .processSync(
+    `
+---
+title: Article
+lang: fr
+---
+  `.trim(),
+  );
+
+// Output validation
 assert.deepEqual(data, {
   title: "Article",
   lang: "fr",

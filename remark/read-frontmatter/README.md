@@ -2,19 +2,19 @@
 
 Parse frontmatter object and insert the properties in the vfile `data` object.
 
-## Usage
-
 Place this plugins after `remark-frontmatter` and before `remark-rehype`.
+
+## JavaScript example
 
 See [example](https://github.com/adaltas/remark/blob/master/parse-frontmater/sample/index.js):
 
 ```js
-const assert = require("assert");
-const unified = require("unified");
-const parseMarkdown = require("remark-parse");
-const remark2rehype = require("remark-rehype");
-const html = require("rehype-stringify");
-const extractFrontmatter = require("remark-frontmatter");
+import assert from "assert";
+import { unified } from "unified";
+import parseMarkdown from "remark-parse";
+import remark2rehype from "remark-rehype";
+import html from "rehype-stringify";
+import extractFrontmatter from "remark-frontmatter";
 const pluginParseFrontmatter = require("remark-read-frontmatter");
 
 const { data } = unified()
@@ -23,8 +23,16 @@ const { data } = unified()
   .use(pluginParseFrontmatter)
   .use(remark2rehype)
   .use(html)
-  .processSync([`---`, `title: 'Article'`, `lang: fr`, `---`].join("\n"));
-// Test output
+  .processSync(
+    `
+---
+title: Article
+lang: fr
+---
+  `.trim(),
+  );
+
+// Output validation
 assert.deepEqual(data, {
   title: "Article",
   lang: "fr",
@@ -34,4 +42,4 @@ assert.deepEqual(data, {
 ## Options
 
 - `property`, string, default `undefined`  
-  The property in [vfile.data](https://github.com/vfile/vfile) where to assign the frontmatter object.
+  The property in [vfile.data](https://github.com/vfile/vfile) where to assign the frontmatter object. The default behavior merge the VFile data object with the frontmatter object.
