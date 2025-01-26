@@ -45,3 +45,5 @@ assert.deepEqual(data, {
 
 - `property`, string, default `undefined`  
   The property in [vfile.data](https://github.com/vfile/vfile) where to assign the frontmatter object. The default behavior merge the VFile data object with the frontmatter object.
+- `override`, boolean, default `false`
+  Override the VFile property (`data` by default) instead of merging its value object.

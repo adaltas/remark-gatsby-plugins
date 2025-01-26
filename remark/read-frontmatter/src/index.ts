@@ -6,6 +6,7 @@ import { VFile } from "vfile";
 
 interface ReadFrontmatterOptions {
   property?: string;
+  override?: boolean;
 }
 
 interface Toml extends Literal {
@@ -21,6 +22,7 @@ declare module "mdast" {
 
 const readFrontmatter: Plugin<[ReadFrontmatterOptions?], Root> = function ({
   property = undefined,
+  override = false,
 } = {}) {
   return (tree: Root, vfile: VFile) => {
     // Extract frontmatter
@@ -33,22 +35,29 @@ const readFrontmatter: Plugin<[ReadFrontmatterOptions?], Root> = function ({
           break;
         case "toml":
           data = toml.parse(child.value) as Record<string, unknown>;
-          console.log(child, data);
           break;
         default:
           continue;
       }
       // Frontmatter object insertion
       if (property) {
-        vfile.data[property] = {
-          ...(vfile.data[property] || {}),
-          ...data,
-        };
+        if (override) {
+          vfile.data[property] = data;
+        } else {
+          vfile.data[property] = {
+            ...(vfile.data[property] || {}),
+            ...data,
+          };
+        }
       } else {
-        vfile.data = {
-          ...vfile.data,
-          ...data,
-        };
+        if (override) {
+          vfile.data = data;
+        } else {
+          vfile.data = {
+            ...vfile.data,
+            ...data,
+          };
+        }
       }
     }
     return;

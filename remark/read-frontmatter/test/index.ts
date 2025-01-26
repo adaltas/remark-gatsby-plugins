@@ -59,4 +59,48 @@ describe("Read frontmatter", function () {
     // if (!data.test) throw Error("Property data.test is not defined.");
     data.test.should.eql({ title: "Article", lang: "fr" });
   });
+
+  it("option `override` is `false` by default", async function () {
+    const { data } = await unified()
+      .use(parseMarkdown)
+      .use(extractFrontmatter, ["yaml"])
+      .use(() => {
+        return (tree, file) => {
+          file.data = {
+            overriden: "no",
+          };
+        };
+      })
+      .use(pluginReadFrontmatter)
+      .use(remark2rehype)
+      .use(html).process(dedent`
+        ---
+        title: Article
+        lang: fr
+        ---
+      `);
+    data.should.eql({ overriden: "no", title: "Article", lang: "fr" });
+  });
+
+  it("option `override` is `true`", async function () {
+    const { data } = await unified()
+      .use(parseMarkdown)
+      .use(extractFrontmatter, ["yaml"])
+      .use(() => {
+        return (tree, file) => {
+          file.data = {
+            overriden: "yes",
+          };
+        };
+      })
+      .use(pluginReadFrontmatter, { override: true })
+      .use(remark2rehype)
+      .use(html).process(dedent`
+        ---
+        title: Article
+        lang: fr
+        ---
+      `);
+    data.should.eql({ title: "Article", lang: "fr" });
+  });
 });
