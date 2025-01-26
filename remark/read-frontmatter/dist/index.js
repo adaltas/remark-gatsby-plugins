@@ -1,0 +1,1 @@
+import a from"js-yaml";var i=function({property:t=void 0}={}){return(e,o)=>{for(let r of e.children){if(r.type!=="yaml")continue;let n=a.load(r.value);t?o.data[t]=n:o.data=n}}},d=i;export{d as default};
