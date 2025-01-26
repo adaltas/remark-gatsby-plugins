@@ -1,14 +1,6 @@
 # Remark and Gatsby plugins by Adaltas
 
-## Developers
-
-The following command bumps the package versions, creates the tags, synchronizes with the remote repository which triggers the CI pipeline and publish the packages:
-
-```bash
-yarn run version
-```
-
-Projects:
+## Projects
 
 - [Remark links absolute](./remark/links-absolute)  
   Convert relative links to absolute link.
@@ -23,7 +15,7 @@ Projects:
 - [Remark Title to Frontmatter](./remark/title-to-frontmatter)  
   Export the title present in the Markdown to the frontmatter.
 
-Gatsby legacy projects:
+## Gatsby legacy projects
 
 - [Gatsby Remark enforce empty lines](./legacy/gatsby-remark/enforce-empty-lines)  
   Ensure there is an empty line between each blocks. It print a warning with the file name and the line number. A block is one of "blockquote", "code", "heading", "html", "list", "paragraph" and "thematicBreak".
@@ -38,3 +30,11 @@ Gatsby legacy projects:
   This package is a Gatsby module to move the title from the Markdown content to the frontmatter object.
 - [Gatsby Caddy redirect configuration generation](./legacy/gatsvy-caddy-redirects-conf)  
   Generate a Caddy compatible config file.
+
+## Developers
+
+The following command bumps the package versions, creates the tags, synchronizes with the remote repository which triggers the CI pipeline and publish the packages:
+
+```bash
+yarn run version
+```
