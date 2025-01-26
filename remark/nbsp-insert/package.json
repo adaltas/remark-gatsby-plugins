@@ -16,12 +16,8 @@
   },
   "exports": {
     ".": {
-      "import": {
-        "default": "./lib/index.js"
-      },
-      "require": {
-        "default": "./dist/remark-public-images.cjs"
-      }
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     }
   },
   "files": [
