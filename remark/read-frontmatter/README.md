@@ -1,7 +1,8 @@
 # Remark Read Frontmatter
 
-Parse frontmatter object and insert the properties in the vfile `data` object.
+Remark Read Frontmatter is a Remark plugin written in TypeScript with native for YAML and and TOML frontmatters. No option is required.
 
+The plugin parse the extracted frontmatter object by [`remark-frontmatter`](https://github.com/remarkjs/remark-frontmatter) and insert its properties in the vfile `data` object.
 Place this plugins after `remark-frontmatter` and before `remark-rehype`.
 
 ## JavaScript example

@@ -8,7 +8,7 @@ import extractFrontmatter from "remark-frontmatter";
 import pluginReadFrontmatter from "../src/index.js";
 
 describe("Read frontmatter", function () {
-  it("simple", async function () {
+  it("extract yaml", async function () {
     const { data } = await unified()
       .use(parseMarkdown)
       .use(extractFrontmatter, ["yaml"])
@@ -19,6 +19,21 @@ describe("Read frontmatter", function () {
         title: 'Article'
         lang: fr
         ---
+      `);
+    data.should.eql({ title: "Article", lang: "fr" });
+  });
+
+  it("extract toml", async function () {
+    const { data } = await unified()
+      .use(parseMarkdown)
+      .use(extractFrontmatter, ["toml"])
+      .use(pluginReadFrontmatter)
+      .use(remark2rehype)
+      .use(html).process(dedent`
+        +++
+        title = 'Article'
+        lang = 'fr'
+        +++
       `);
     data.should.eql({ title: "Article", lang: "fr" });
   });
