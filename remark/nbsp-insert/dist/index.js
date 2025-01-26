@@ -1,0 +1,1 @@
+import{visit as u}from"unist-util-visit";var i=function(){return r=>u(r,"text",e=>{e.value=e.value.replace(/( |[ \u00a0]{2,})([:;?!…])(?= |$|\*+)/g,t=>"\xA0"+t.substring(t.length-1,t.length))})},n=i;export{n as default};
