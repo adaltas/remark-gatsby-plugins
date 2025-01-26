@@ -1,8 +1,8 @@
 import { type Plugin } from "unified";
 import yaml from "js-yaml";
 import toml from "smol-toml";
-import { Root, Data, Literal } from "mdast";
-import { VFile } from "vfile";
+import { type Root, type Data, type Literal } from "mdast";
+import { type VFile } from "vfile";
 
 interface ReadFrontmatterOptions {
   property?: string;
