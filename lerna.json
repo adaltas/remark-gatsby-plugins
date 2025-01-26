@@ -4,10 +4,7 @@
       "message": "chore(release): publish"
     }
   },
-  "ignoreChanges": [
-    "**/test/**"
-  ],
+  "ignoreChanges": ["**/test/**"],
   "npmClient": "yarn",
-  "useWorkspaces": true,
   "version": "independent"
 }

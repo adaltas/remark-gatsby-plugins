@@ -3,21 +3,21 @@
   "version": "0.4.0",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
-    "@sindresorhus/slugify": "^2.2.0",
-    "mixme": "^0.5.9",
-    "rehype-stringify": "^9.0.3",
-    "remark-frontmatter": "^4.0.1",
-    "remark-parse": "^10.0.1",
+    "@sindresorhus/slugify": "^2.2.1",
+    "mixme": "^1.1.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-frontmatter": "^5.0.0",
+    "remark-parse": "^11.0.0",
     "remark-read-frontmatter": "^0.2.2",
-    "remark-rehype": "^10.1.0",
-    "unist-util-visit": "^4.1.2"
+    "remark-rehype": "^11.1.1",
+    "unist-util-visit": "^5.0.0"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^25.0.3",
-    "@rollup/plugin-node-resolve": "^15.1.0",
-    "dedent": "^0.7.0",
-    "each": "^2.6.0",
-    "rollup": "^3.26.3"
+    "@rollup/plugin-commonjs": "^28.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "dedent": "^1.5.3",
+    "each": "^2.7.2",
+    "rollup": "^4.32.0"
   },
   "exports": {
     ".": {
