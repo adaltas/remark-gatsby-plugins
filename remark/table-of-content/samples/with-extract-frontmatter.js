@@ -6,13 +6,13 @@ import remark2rehype from "remark-rehype";
 import html from "rehype-stringify";
 import extractFrontmatter from "remark-frontmatter";
 import pluginReadFrontmatter from "remark-read-frontmatter";
-import pluginToc from "../lib/index.js";
+import pluginToc from "../dist/index.js";
 
 const { data } = await unified()
   .use(parseMarkdown)
   .use(extractFrontmatter, ["yaml"])
   .use(pluginReadFrontmatter)
-  .use(pluginToc, { property: ["data", "toc"] })
+  .use(pluginToc, { property: ["table_of_content"] })
   .use(remark2rehype)
   .use(html).process(dedent`
   ---
@@ -23,7 +23,7 @@ const { data } = await unified()
 `);
 assert.deepEqual(data, {
   description: "Using with frontmatter",
-  toc: [
+  table_of_content: [
     { title: "Heading 1", depth: 1, anchor: "heading-1" },
     { title: "Heading 2", depth: 2, anchor: "heading-2" },
   ],

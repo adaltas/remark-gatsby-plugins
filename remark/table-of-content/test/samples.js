@@ -1,3 +1,4 @@
+import "should";
 import each from "each";
 import fs from "fs";
 import path from "path";

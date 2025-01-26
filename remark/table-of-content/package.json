@@ -4,12 +4,9 @@
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "@sindresorhus/slugify": "^2.2.1",
+    "mdast": "^3.0.0",
+    "mdast-util-to-string": "^4.0.0",
     "mixme": "^1.1.0",
-    "rehype-stringify": "^10.0.1",
-    "remark-frontmatter": "^5.0.0",
-    "remark-parse": "^11.0.0",
-    "remark-read-frontmatter": "^0.2.2",
-    "remark-rehype": "^11.1.1",
     "unist-util-visit": "^5.0.0"
   },
   "devDependencies": {
@@ -17,7 +14,13 @@
     "@rollup/plugin-node-resolve": "^16.0.0",
     "dedent": "^1.5.3",
     "each": "^2.7.2",
-    "rollup": "^4.32.0"
+    "rehype-stringify": "^10.0.1",
+    "remark-frontmatter": "^5.0.0",
+    "remark-parse": "^11.0.0",
+    "remark-read-frontmatter": "^0.2.2",
+    "remark-rehype": "^11.1.1",
+    "rollup": "^4.32.0",
+    "tsx": "^4.19.2"
   },
   "exports": {
     ".": {
@@ -37,18 +40,16 @@
   "module": "lib/index.js",
   "mocha": {
     "throw-deprecation": true,
-    "require": [
-      "should"
-    ],
+    "import": "tsx",
     "inline-diffs": true,
     "timeout": 40000,
     "reporter": "spec",
     "recursive": true
   },
   "scripts": {
-    "build": "rollup -c",
+    "build": "tsup-node",
     "prerelease": "npm run build",
-    "test": "mocha 'test/**/*.js'"
+    "test": "mocha 'test/**/*.{js,ts}'"
   },
   "type": "module"
 }
