@@ -1,5 +1,5 @@
 import { type Plugin } from "unified";
-import { Text } from "mdast";
+import { type Text } from "mdast";
 
 import { visit } from "unist-util-visit";
 
