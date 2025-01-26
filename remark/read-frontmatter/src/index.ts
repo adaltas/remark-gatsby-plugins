@@ -22,9 +22,9 @@ declare module "mdast" {
 const readFrontmatter: Plugin<[ReadFrontmatterOptions?], Root> = function ({
   property = undefined,
 } = {}) {
-  return (ast: Root, vfile: VFile) => {
+  return (tree: Root, vfile: VFile) => {
     // Extract frontmatter
-    for (const child of ast.children) {
+    for (const child of tree.children) {
       // Frontmatter object deserialization
       let data: Record<string, unknown>;
       switch (child.type) {
