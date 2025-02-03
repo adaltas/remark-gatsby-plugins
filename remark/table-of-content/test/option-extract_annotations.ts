@@ -10,8 +10,8 @@ interface DataWithToc extends Data {
   toc: DataToc;
 }
 
-describe("Options `depth_min` and `depth_max`", function () {
-  it("with mdx annotation", async function () {
+describe("Option `extract_annotations`", function () {
+  it("default is `true`", async function () {
     const result = await compile(
       dedent`
       # Heading 1
@@ -26,6 +26,31 @@ describe("Options `depth_min` and `depth_max`", function () {
     (result.data as DataWithToc).toc.should.eql([
       { title: "Heading 1", depth: 1, anchor: "heading-1" },
       { title: "Heading 2", depth: 2, anchor: "my-heading-2" },
+    ]);
+  });
+
+  it.only("disabled if `false`", async function () {
+    const result = await compile(
+      dedent`
+        # Heading 1
+        ## Heading 2 {{ id: 'my-heading-2' }}
+      `,
+      {
+        remarkPlugins: [
+          mdxAnnotations.remark,
+          [pluginToc, { extract_annotations: false }],
+        ],
+        rehypePlugins: [mdxAnnotations.rehype],
+        recmaPlugins: [mdxAnnotations.recma],
+      },
+    );
+    (result.data as DataWithToc).toc.should.eql([
+      { title: "Heading 1", depth: 1, anchor: "heading-1" },
+      {
+        title: "Heading 2",
+        depth: 2,
+        anchor: "heading-2",
+      },
     ]);
   });
 });

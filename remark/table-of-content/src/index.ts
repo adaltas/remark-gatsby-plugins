@@ -10,6 +10,7 @@ interface TableOfContentOptions {
   depth_min?: number;
   depth_max?: number;
   property?: string[];
+  extract_annotations?: boolean;
   extract_hash?: boolean;
   prefix?: string;
 }
@@ -29,6 +30,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
   depth_max = 3,
   property = ["toc"],
   prefix = "",
+  extract_annotations = true,
   extract_hash = true,
 } = {}) {
   const slugs = new Slugger();
@@ -46,7 +48,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
       // - Place the annotation in `node.hProperties.annotation`
       // - [Parse](https://github.com/bradlc/mdx-annotations/blob/main/index.js#L134) the annotation with [acorn](https://github.com/acornjs/acorn/blob/master/acorn/src/acorn.d.ts)
       let anchor: string = "";
-      if (node.data?.hProperties?.annotation) {
+      if (extract_annotations === true && node.data?.hProperties?.annotation) {
         const annotation = (
           acorn.parse("(" + node.data?.hProperties?.annotation + ")", {
             ecmaVersion: "latest",
