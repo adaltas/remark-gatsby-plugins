@@ -2,7 +2,10 @@
 
 This is a Remark plugin to extract a table of content from your Markdown file.
 
-It supports CommonJS and ES modules.
+- Supports CommonJS and ES modules.
+- Extract anchor from hash present in the title, eg `## My header-2 #header-2`
+- Discover [`mdx-annotations`](https://github.com/bradlc/mdx-annotations) properties
+- Depth minimum and maximum options
 
 ## Anchor discovery
 
@@ -16,6 +19,8 @@ By default, the anchor property is created by transforming the title into a huma
   The minimum heading level to include, default with heading 1 (`# Heading 1`).
 - `depth_max`, integer, default `3`  
   The maximum heading level to include, default with heading 1 (`### Heading 3`).
+- `extract_hash`, boolean, default `true`  
+  Extract the anchor from the title if its value finished by `#` followed by letters, numbers, `-` and `_` characters.
 - `prefix`, string, default `undefined`  
   Prepend a prefix to the `anchor` properties.
 - `property`, string|array(string), default `toc`  
@@ -50,7 +55,7 @@ assert.deepEqual(toc, [
 ]);
 ```
 
-## Using the `property` option
+## Option `property`
 
 By default, the VFile `data` object is enriched with the new `toc` object.
 

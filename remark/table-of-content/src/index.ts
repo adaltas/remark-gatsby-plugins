@@ -10,6 +10,7 @@ interface TableOfContentOptions {
   depth_min?: number;
   depth_max?: number;
   property?: string[];
+  extract_hash?: boolean;
   prefix?: string;
 }
 
@@ -28,6 +29,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
   depth_max = 3,
   property = ["toc"],
   prefix = "",
+  extract_hash = true,
 } = {}) {
   const slugs = new Slugger();
   if (typeof property === "string") {
@@ -37,7 +39,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
     const toc: DataToc = [];
     visit(tree, "heading", function (node: Heading) {
       if (node.depth < depth_min || node.depth > depth_max) return;
-      const title = toString(node.children);
+      let title = toString(node.children);
       if (!title) return;
       // MDX annotation
       // - Search for [`... { ... }`](https://github.com/bradlc/mdx-annotations/blob/main/index.js#L26) in markdown block elements
@@ -57,6 +59,12 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
             anchor =
               "" + ((property as acorn.Property).value as acorn.Literal).value;
           }
+        }
+      }
+      if (anchor === "" && extract_hash) {
+        const match = /^(.*[^\s])\s+#([\w-_]+\s*)$/.exec(title);
+        if (match) {
+          [, title, anchor] = match;
         }
       }
       // Default is to slugify the title
