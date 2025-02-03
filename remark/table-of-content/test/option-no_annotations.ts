@@ -10,7 +10,7 @@ interface DataWithToc extends Data {
   toc: DataToc;
 }
 
-describe("Option `extract_annotations`", function () {
+describe("Option `no_annotations`", function () {
   it("default is `true`", async function () {
     const result = await compile(
       dedent`
@@ -29,7 +29,7 @@ describe("Option `extract_annotations`", function () {
     ]);
   });
 
-  it.only("disabled if `false`", async function () {
+  it("disabled if `false`", async function () {
     const result = await compile(
       dedent`
         # Heading 1
@@ -38,7 +38,7 @@ describe("Option `extract_annotations`", function () {
       {
         remarkPlugins: [
           mdxAnnotations.remark,
-          [pluginToc, { extract_annotations: false }],
+          [pluginToc, { no_annotations: true }],
         ],
         rehypePlugins: [mdxAnnotations.rehype],
         recmaPlugins: [mdxAnnotations.recma],
