@@ -4,16 +4,19 @@
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "@sindresorhus/slugify": "^2.2.1",
+    "acorn": "^8.14.0",
     "mdast": "^3.0.0",
     "mdast-util-to-string": "^4.0.0",
     "mixme": "^1.1.0",
     "unist-util-visit": "^5.0.0"
   },
   "devDependencies": {
+    "@mdx-js/mdx": "^3.1.0",
     "@rollup/plugin-commonjs": "^28.0.2",
     "@rollup/plugin-node-resolve": "^16.0.0",
     "dedent": "^1.5.3",
     "each": "^2.7.2",
+    "mdx-annotations": "^0.1.4",
     "rehype-stringify": "^10.0.1",
     "remark-frontmatter": "^5.0.0",
     "remark-parse": "^11.0.0",

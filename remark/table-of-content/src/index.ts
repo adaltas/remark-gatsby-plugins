@@ -3,6 +3,7 @@ import slugify from "@sindresorhus/slugify";
 import { type Root, type Heading } from "mdast";
 import { toString } from "mdast-util-to-string";
 import { visit } from "unist-util-visit";
+import * as acorn from "acorn";
 import { is_object_literal } from "mixme";
 
 interface TableOfContentOptions {
@@ -30,43 +31,40 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
     property = [property];
   }
   return function (tree, vfile) {
-    // if(get(vfile.data, property) === false) {
-    //   return
-    // }
     const toc: DataToc = [];
     visit(tree, "heading", function (node: Heading) {
       if (node.depth < depth_min || node.depth > depth_max) return;
       const title = toString(node.children);
-      // const title = node.children
-      //   .filter(
-      //     (child) =>
-      //       child.type === "text" ||
-      //       child.type === "strong" ||
-      //       child.type === "emphasis" ||
-      //       child.type === "inlineCode",
-      //   )
-      //   .map((child: Emphasis | InlineCode | Strong | Text) => {
-      //     // when the text is bold or italic, the node.children[0] is not a text node but a strong or emphasis node
-      //     // so we need to check the type of the node.children[0] to get the text value
-      //     if (child.type === "strong" || child.type === "emphasis") {
-      //       // case strong AND emphasis (***italic bold***) : the node.children[0] as an embedded node with the type strong or emphasis
-      //       if (
-      //         child.children[0].type === "strong" ||
-      //         child.children[0].type === "emphasis"
-      //       ) {
-      //         return child.children[0].children[0].value;
-      //       }
-      //       return child.children[0].value;
-      //     }
-      //     // but for inlineCode and text node, the value is directly in the child.value
-      //     return child.value;
-      //   })
-      //   .join("");
       if (!title) return;
+      // MDX annotation
+      // - Search for [`... { ... }`](https://github.com/bradlc/mdx-annotations/blob/main/index.js#L26) in markdown block elements
+      // - Place the annotation in `node.hProperties.annotation`
+      // - [Parse](https://github.com/bradlc/mdx-annotations/blob/main/index.js#L134) the annotation with [acorn](https://github.com/acornjs/acorn/blob/master/acorn/src/acorn.d.ts)
+      let anchor: string = "";
+      if (node.data?.hProperties?.annotation) {
+        const annotation = (
+          acorn.parse("(" + node.data?.hProperties?.annotation + ")", {
+            ecmaVersion: "latest",
+          }).body[0] as acorn.ExpressionStatement
+        ).expression as acorn.ObjectExpression;
+        for (const property of annotation.properties) {
+          if (
+            ((property as acorn.Property).key as acorn.Identifier).name === "id"
+          ) {
+            anchor =
+              "" + ((property as acorn.Property).value as acorn.Literal).value;
+          }
+        }
+      }
+      // Default is to slugify the title
+      if (anchor === "") {
+        // anchor = slugs.slug(title);
+        anchor = slugify(title);
+      }
       toc.push({
         title: title,
         depth: node.depth,
-        anchor: slugify(title),
+        anchor: anchor,
       });
     });
     set(vfile.data, property, toc, false);
