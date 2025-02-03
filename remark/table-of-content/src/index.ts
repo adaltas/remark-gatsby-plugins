@@ -10,8 +10,8 @@ interface TableOfContentOptions {
   depth_min?: number;
   depth_max?: number;
   property?: string[];
-  extract_hash?: boolean;
   no_annotations?: boolean;
+  no_hash?: boolean;
   prefix?: string;
 }
 
@@ -29,6 +29,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
   depth_min = 1,
   depth_max = 3,
   no_annotations = false,
+  no_hash = false,
   property = ["toc"],
   prefix = "",
 } = {}) {
@@ -62,7 +63,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
           }
         }
       }
-      if (anchor === "" && extract_hash) {
+      if (!no_hash && anchor === "") {
         const match = /^(.*[^\s])\s+#([\w-_]+\s*)$/.exec(title);
         if (match) {
           [, title, anchor] = match;

@@ -9,7 +9,7 @@ import pluginReadFrontmatter from "remark-read-frontmatter";
 import pluginToc, { DataToc } from "../src/index.js";
 import { Data } from "mdast";
 
-describe("option `extract_hash`", function () {
+describe("option `no_hash`", function () {
   it("default is `true`", async function () {
     const space = " ";
     const { data } = await unified()
@@ -36,7 +36,7 @@ describe("option `extract_hash`", function () {
       .use(parseMarkdown)
       .use(extractFrontmatter, ["yaml"])
       .use(pluginReadFrontmatter)
-      .use(pluginToc, { extract_hash: false })
+      .use(pluginToc, { no_hash: true })
       .use(remark2rehype)
       .use(html).process(dedent`
             # Heading 1 #my-header-1

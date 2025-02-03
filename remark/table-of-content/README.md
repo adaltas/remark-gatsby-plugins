@@ -19,10 +19,10 @@ By default, the anchor property is created by transforming the title into a huma
   The minimum heading level to include, default with heading 1 (`# Heading 1`).
 - `depth_max`, integer, default `3`  
   The maximum heading level to include, default with heading 1 (`### Heading 3`).
-- `extract_hash`, boolean, default `true`  
-  Extract the anchor from the title if its value finished by `#` followed by letters, numbers, `-` and `_` characters.
 - `no_annotations`, boolean, default `false`  
   By default, the plugin works with mdx annotations and extract the `id` property if it exists. Set this option to `true` to disable the feature.
+- `no_hash`, boolean, default `false`  
+  By default, the plugin extract the anchor from the title if its value finished by `#` followed by letters, numbers, `-` and `_` characters. Set this option to `true` to disable the feature.
 - `prefix`, string, default `undefined`  
   Prepend a prefix to the `anchor` properties.
 - `property`, string|array(string), default `toc`  
