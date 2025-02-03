@@ -1,3 +1,4 @@
+/// <reference path="./mdx-annotations.d.ts" />
 import "should";
 import dedent from "dedent";
 import { mdxAnnotations } from "mdx-annotations";

@@ -1,5 +1,5 @@
 import { type Plugin } from "unified";
-import slugify from "@sindresorhus/slugify";
+import Slugger from "github-slugger";
 import { type Root, type Heading } from "mdast";
 import { toString } from "mdast-util-to-string";
 import { visit } from "unist-util-visit";
@@ -27,6 +27,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
   depth_max = 3,
   property = ["toc"],
 } = {}) {
+  const slugs = new Slugger();
   if (typeof property === "string") {
     property = [property];
   }
@@ -58,8 +59,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
       }
       // Default is to slugify the title
       if (anchor === "") {
-        // anchor = slugs.slug(title);
-        anchor = slugify(title);
+        anchor = slugs.slug(title);
       }
       toc.push({
         title: title,
