@@ -4,13 +4,21 @@ This is a Remark plugin to extract a table of content from your Markdown file.
 
 It supports CommonJS and ES modules.
 
+## Anchor discovery
+
+If using [`mdx-annotations`](https://github.com/bradlc/mdx-annotations), the anchor property is extracted from the `id` annotation associated with headers.
+
+By default, the anchor property is created by transforming the title into a human readable slug.
+
 ## Options
 
-- `depth_min`, integer, default `1`
+- `depth_min`, integer, default `1`  
   The minimum heading level to include, default with heading 1 (`# Heading 1`).
-- `depth_max`, integer, default `3`
+- `depth_max`, integer, default `3`  
   The maximum heading level to include, default with heading 1 (`### Heading 3`).
-- `property`, string|array(string), default `toc`
+- `prefix`, string, default `undefined`  
+  Prepend a prefix to the `anchor` properties.
+- `property`, string|array(string), default `toc`  
   The property name in the [VFile](https://github.com/vfile/vfile) `data` object where to store the table of content. The value may be an array if the property is made of multiple levels.
 
 ## Simple usage

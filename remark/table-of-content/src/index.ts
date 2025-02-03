@@ -10,6 +10,7 @@ interface TableOfContentOptions {
   depth_min?: number;
   depth_max?: number;
   property?: string[];
+  prefix?: string;
 }
 
 interface DataTocItem {
@@ -26,6 +27,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
   depth_min = 1,
   depth_max = 3,
   property = ["toc"],
+  prefix = "",
 } = {}) {
   const slugs = new Slugger();
   if (typeof property === "string") {
@@ -64,7 +66,7 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
       toc.push({
         title: title,
         depth: node.depth,
-        anchor: anchor,
+        anchor: prefix + anchor,
       });
     });
     set(vfile.data, property, toc, false);
