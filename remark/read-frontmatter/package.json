@@ -34,12 +34,12 @@
   "main": "./dist/remark-read-frontmatter.cjs",
   "module": "lib/index.js",
   "mocha": {
-    "throw-deprecation": true,
-    "import": "tsx",
     "inline-diffs": true,
-    "timeout": 40000,
+    "import": "tsx",
     "reporter": "spec",
-    "recursive": true
+    "recursive": true,
+    "timeout": 40000,
+    "throw-deprecation": true
   },
   "scripts": {
     "build": "tsup-node",

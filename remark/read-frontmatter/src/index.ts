@@ -13,6 +13,7 @@ interface Toml extends Literal {
   type: "toml";
   data?: Data;
 }
+
 declare module "mdast" {
   interface RootContentMap {
     // TOML node registration
