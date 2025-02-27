@@ -5,6 +5,6 @@
     }
   },
   "ignoreChanges": ["**/test/**"],
-  "npmClient": "yarn",
+  "npmClient": "npm",
   "version": "independent"
 }
