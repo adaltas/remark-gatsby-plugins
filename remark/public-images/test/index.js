@@ -30,7 +30,7 @@ describe("Public images", function () {
         mkdir ${tmpdir}/article
         mkdir ${tmpdir}/public
         cd ${tmpdir}/public
-        git init --bare
+        git init --bare --initial-branch=main
       `,
         (err) => (err ? reject(err) : resolve()),
       );
