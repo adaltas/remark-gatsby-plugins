@@ -28,7 +28,7 @@
     }
   },
   "files": [
-    "/lib"
+    "/dist"
   ],
   "license": "MIT",
   "main": "./dist/remark-read-frontmatter.cjs",

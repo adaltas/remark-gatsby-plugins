@@ -1,9 +1,10 @@
 'use strict';
 
 /**
+ * @typedef {import('unist').Node} Node
  * @typedef {import('unist').Parent} Parent
- * @typedef {import('hast').Element} Element
  */
+
 
 /**
  * Generate an assertion from a test.
@@ -14,188 +15,46 @@
  * The created function is a bit faster because it expects valid input only:
  * a `node`, `index`, and `parent`.
  *
- * @param test
- *   *  When nullish, checks if `node` is an `Element`.
- *   *  When `string`, works like passing `(element) => element.tagName === test`.
- *   *  When `function` checks if function passed the element is true.
- *   *  When `array`, checks any one of the subtests pass.
- * @returns
+ * @param {Test} test
+ *   *   when nullish, checks if `node` is a `Node`.
+ *   *   when `string`, works like passing `(node) => node.type === test`.
+ *   *   when `function` checks if function passed the node is true.
+ *   *   when `object`, checks that all keys in test are in node, and that they have (strictly) equal values.
+ *   *   when `array`, checks if any one of the subtests pass.
+ * @returns {Check}
  *   An assertion.
  */
-const convertElement =
+const convert =
+  // Note: overloads in JSDoc can’t yet use different `@template`s.
   /**
    * @type {(
-   *   (<T extends Element>(test: T['tagName'] | TestFunctionPredicate<T>) => AssertPredicate<T>) &
-   *   ((test?: Test) => AssertAnything)
+   *   (<Condition extends string>(test: Condition) => (node: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node & {type: Condition}) &
+   *   (<Condition extends Props>(test: Condition) => (node: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node & Condition) &
+   *   (<Condition extends TestFunction>(test: Condition) => (node: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node & Predicate<Condition, Node>) &
+   *   ((test?: null | undefined) => (node?: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node) &
+   *   ((test?: Test) => Check)
    * )}
    */
   (
     /**
-     * @param {Test | null | undefined} [test]
-     * @returns {AssertAnything}
+     * @param {Test} [test]
+     * @returns {Check}
      */
     function (test) {
-      if (test === undefined || test === null) {
-        return element
-      }
-
-      if (typeof test === 'string') {
-        return tagNameFactory(test)
-      }
-
-      if (typeof test === 'object') {
-        return anyFactory$1(test)
+      if (test === null || test === undefined) {
+        return ok
       }
 
       if (typeof test === 'function') {
         return castFactory$1(test)
       }
 
-      throw new Error('Expected function, string, or array as test')
-    }
-  );
-
-/**
- * Handle multiple tests.
- *
- * @param {Array<string | TestFunctionAnything>} tests
- * @returns {AssertAnything}
- */
-function anyFactory$1(tests) {
-  /** @type {Array<AssertAnything>} */
-  const checks = [];
-  let index = -1;
-
-  while (++index < tests.length) {
-    checks[index] = convertElement(tests[index]);
-  }
-
-  return castFactory$1(any)
-
-  /**
-   * @this {unknown}
-   * @param {Array<unknown>} parameters
-   * @returns {boolean}
-   */
-  function any(...parameters) {
-    let index = -1;
-
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) {
-        return true
-      }
-    }
-
-    return false
-  }
-}
-
-/**
- * Turn a string into a test for an element with a certain tag name.
- *
- * @param {string} check
- * @returns {AssertAnything}
- */
-function tagNameFactory(check) {
-  return tagName
-
-  /**
-   * @param {unknown} node
-   * @returns {boolean}
-   */
-  function tagName(node) {
-    return element(node) && node.tagName === check
-  }
-}
-
-/**
- * Turn a custom test into a test for an element that passes that test.
- *
- * @param {TestFunctionAnything} check
- * @returns {AssertAnything}
- */
-function castFactory$1(check) {
-  return assertion
-
-  /**
-   * @this {unknown}
-   * @param {unknown} node
-   * @param {Array<unknown>} parameters
-   * @returns {boolean}
-   */
-  function assertion(node, ...parameters) {
-    // @ts-expect-error: fine.
-    return element(node) && Boolean(check.call(this, node, ...parameters))
-  }
-}
-
-/**
- * Make sure something is an element.
- *
- * @param {unknown} node
- * @returns {node is Element}
- */
-function element(node) {
-  return Boolean(
-    node &&
-      typeof node === 'object' &&
-      // @ts-expect-error Looks like a node.
-      node.type === 'element' &&
-      // @ts-expect-error Looks like an element.
-      typeof node.tagName === 'string'
-  )
-}
-
-/**
- * @typedef {import('unist').Node} Node
- * @typedef {import('unist').Parent} Parent
- */
-
-/**
- * Generate an assertion from a test.
- *
- * Useful if you’re going to test many nodes, for example when creating a
- * utility where something else passes a compatible test.
- *
- * The created function is a bit faster because it expects valid input only:
- * a `node`, `index`, and `parent`.
- *
- * @param test
- *   *   when nullish, checks if `node` is a `Node`.
- *   *   when `string`, works like passing `(node) => node.type === test`.
- *   *   when `function` checks if function passed the node is true.
- *   *   when `object`, checks that all keys in test are in node, and that they have (strictly) equal values.
- *   *   when `array`, checks if any one of the subtests pass.
- * @returns
- *   An assertion.
- */
-const convert =
-  /**
-   * @type {(
-   *   (<Kind extends Node>(test: PredicateTest<Kind>) => AssertPredicate<Kind>) &
-   *   ((test?: Test) => AssertAnything)
-   * )}
-   */
-  (
-    /**
-     * @param {Test} [test]
-     * @returns {AssertAnything}
-     */
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok
+      if (typeof test === 'object') {
+        return Array.isArray(test) ? anyFactory$1(test) : propsFactory(test)
       }
 
       if (typeof test === 'string') {
         return typeFactory(test)
-      }
-
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory(test) : propsFactory(test)
-      }
-
-      if (typeof test === 'function') {
-        return castFactory(test)
       }
 
       throw new Error('Expected function, string, or object as test')
@@ -203,11 +62,11 @@ const convert =
   );
 
 /**
- * @param {Array<string | Props | TestFunctionAnything>} tests
- * @returns {AssertAnything}
+ * @param {Array<Props | TestFunction | string>} tests
+ * @returns {Check}
  */
-function anyFactory(tests) {
-  /** @type {Array<AssertAnything>} */
+function anyFactory$1(tests) {
+  /** @type {Array<Check>} */
   const checks = [];
   let index = -1;
 
@@ -215,18 +74,17 @@ function anyFactory(tests) {
     checks[index] = convert(tests[index]);
   }
 
-  return castFactory(any)
+  return castFactory$1(any)
 
   /**
    * @this {unknown}
-   * @param {Array<unknown>} parameters
-   * @returns {boolean}
+   * @type {TestFunction}
    */
   function any(...parameters) {
     let index = -1;
 
     while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
+      if (checks[index].apply(this, parameters)) return true
     }
 
     return false
@@ -237,22 +95,27 @@ function anyFactory(tests) {
  * Turn an object into a test for a node with a certain fields.
  *
  * @param {Props} check
- * @returns {AssertAnything}
+ * @returns {Check}
  */
 function propsFactory(check) {
-  return castFactory(all)
+  const checkAsRecord = /** @type {Record<string, unknown>} */ (check);
+
+  return castFactory$1(all)
 
   /**
    * @param {Node} node
    * @returns {boolean}
    */
   function all(node) {
+    const nodeAsRecord = /** @type {Record<string, unknown>} */ (
+      /** @type {unknown} */ (node)
+    );
+
     /** @type {string} */
     let key;
 
     for (key in check) {
-      // @ts-expect-error: hush, it sure works as an index.
-      if (node[key] !== check[key]) return false
+      if (nodeAsRecord[key] !== checkAsRecord[key]) return false
     }
 
     return true
@@ -263,10 +126,10 @@ function propsFactory(check) {
  * Turn a string into a test for a node with a certain type.
  *
  * @param {string} check
- * @returns {AssertAnything}
+ * @returns {Check}
  */
 function typeFactory(check) {
-  return castFactory(type)
+  return castFactory$1(type)
 
   /**
    * @param {Node} node
@@ -279,25 +142,25 @@ function typeFactory(check) {
 /**
  * Turn a custom test into a test for a node that passes that test.
  *
- * @param {TestFunctionAnything} check
- * @returns {AssertAnything}
+ * @param {TestFunction} testFunction
+ * @returns {Check}
  */
-function castFactory(check) {
-  return assertion
+function castFactory$1(testFunction) {
+  return check
 
   /**
    * @this {unknown}
-   * @param {unknown} node
-   * @param {Array<unknown>} parameters
-   * @returns {boolean}
+   * @type {Check}
    */
-  function assertion(node, ...parameters) {
+  function check(value, index, parent) {
     return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        // @ts-expect-error: fine.
-        Boolean(check.call(this, node, ...parameters))
+      looksLikeANode(value) &&
+        testFunction.call(
+          this,
+          value,
+          typeof index === 'number' ? index : undefined,
+          parent || undefined
+        )
     )
   }
 }
@@ -307,37 +170,46 @@ function ok() {
 }
 
 /**
- * @typedef {import('unist').Node} Node
- * @typedef {import('unist').Parent} Parent
- * @typedef {import('unist-util-is').Test} Test
+ * @param {unknown} value
+ * @returns {value is Node}
  */
+function looksLikeANode(value) {
+  return value !== null && typeof value === 'object' && 'type' in value
+}
+
+/**
+ * @typedef {import('unist').Node} UnistNode
+ * @typedef {import('unist').Parent} UnistParent
+ */
+
 
 /**
  * Find the first node in `parent` after another `node` or after an index,
  * that passes `test`.
-
+ *
  * @param parent
  *   Parent node.
  * @param index
- *   Child of `parent` or it’s index.
- * @param test
- *   `unist-util-is`-compatible test.
+ *   Child node or index.
+ * @param [test=undefined]
+ *   Test for child to look for (optional).
  * @returns
- *   Child of `parent` or `null`.
+ *   A child (matching `test`, if given) or `undefined`.
  */
 const findAfter =
+  // Note: overloads like this are needed to support optional generics.
   /**
    * @type {(
-   *  (<T extends Node>(node: Parent, index: Node | number, test: import('unist-util-is').PredicateTest<T>) => T | null) &
-   *  ((node: Parent, index: Node | number, test?: Test) => Node | null)
+   *   (<Kind extends UnistParent, Check extends Test>(parent: Kind, index: Child<Kind> | number, test: Check) => Matches<Child<Kind>, Check> | undefined) &
+   *   (<Kind extends UnistParent>(parent: Kind, index: Child<Kind> | number, test?: null | undefined) => Child<Kind> | undefined)
    * )}
    */
   (
     /**
-     * @param {Parent} parent
-     * @param {Node | number} index
+     * @param {UnistParent} parent
+     * @param {UnistNode | number} index
      * @param {Test} [test]
-     * @returns {Node | null}
+     * @returns {UnistNode | undefined}
      */
     function (parent, index, test) {
       const is = convert(test);
@@ -364,31 +236,195 @@ const findAfter =
         }
       }
 
-      return null
+      return undefined
     }
   );
 
 /**
- * @typedef {import('hast-util-is-element').TestFunctionAnything} TestFunctionAnything
- * @typedef {import('hast').Content} Content
- * @typedef {import('hast').Text} Text
- * @typedef {import('hast').Comment} Comment
- * @typedef {import('hast').Root} Root
  * @typedef {import('hast').Element} Element
+ * @typedef {import('hast').Parents} Parents
  */
+
+
+/**
+ * Generate a check from a test.
+ *
+ * Useful if you’re going to test many nodes, for example when creating a
+ * utility where something else passes a compatible test.
+ *
+ * The created function is a bit faster because it expects valid input only:
+ * an `element`, `index`, and `parent`.
+ *
+ * @param test
+ *   A test for a specific element.
+ * @returns
+ *   A check.
+ */
+const convertElement =
+  // Note: overloads in JSDoc can’t yet use different `@template`s.
+  /**
+   * @type {(
+   *   (<Condition extends TestFunction>(test: Condition) => (element: unknown, index?: number | null | undefined, parent?: Parents | null | undefined, context?: unknown) => element is Element & Predicate<Condition, Element>) &
+   *   (<Condition extends string>(test: Condition) => (element: unknown, index?: number | null | undefined, parent?: Parents | null | undefined, context?: unknown) => element is Element & {tagName: Condition}) &
+   *   ((test?: null | undefined) => (element?: unknown, index?: number | null | undefined, parent?: Parents | null | undefined, context?: unknown) => element is Element) &
+   *   ((test?: Test) => Check)
+   * )}
+   */
+  (
+    /**
+     * @param {Test | null | undefined} [test]
+     * @returns {Check}
+     */
+    function (test) {
+      if (test === null || test === undefined) {
+        return element
+      }
+
+      if (typeof test === 'string') {
+        return tagNameFactory(test)
+      }
+
+      // Assume array.
+      if (typeof test === 'object') {
+        return anyFactory(test)
+      }
+
+      if (typeof test === 'function') {
+        return castFactory(test)
+      }
+
+      throw new Error('Expected function, string, or array as `test`')
+    }
+  );
+
+/**
+ * Handle multiple tests.
+ *
+ * @param {Array<TestFunction | string>} tests
+ * @returns {Check}
+ */
+function anyFactory(tests) {
+  /** @type {Array<Check>} */
+  const checks = [];
+  let index = -1;
+
+  while (++index < tests.length) {
+    checks[index] = convertElement(tests[index]);
+  }
+
+  return castFactory(any)
+
+  /**
+   * @this {unknown}
+   * @type {TestFunction}
+   */
+  function any(...parameters) {
+    let index = -1;
+
+    while (++index < checks.length) {
+      if (checks[index].apply(this, parameters)) return true
+    }
+
+    return false
+  }
+}
+
+/**
+ * Turn a string into a test for an element with a certain type.
+ *
+ * @param {string} check
+ * @returns {Check}
+ */
+function tagNameFactory(check) {
+  return castFactory(tagName)
+
+  /**
+   * @param {Element} element
+   * @returns {boolean}
+   */
+  function tagName(element) {
+    return element.tagName === check
+  }
+}
+
+/**
+ * Turn a custom test into a test for an element that passes that test.
+ *
+ * @param {TestFunction} testFunction
+ * @returns {Check}
+ */
+function castFactory(testFunction) {
+  return check
+
+  /**
+   * @this {unknown}
+   * @type {Check}
+   */
+  function check(value, index, parent) {
+    return Boolean(
+      looksLikeAnElement(value) &&
+        testFunction.call(
+          this,
+          value,
+          typeof index === 'number' ? index : undefined,
+          parent || undefined
+        )
+    )
+  }
+}
+
+/**
+ * Make sure something is an element.
+ *
+ * @param {unknown} element
+ * @returns {element is Element}
+ */
+function element(element) {
+  return Boolean(
+    element &&
+      typeof element === 'object' &&
+      'type' in element &&
+      element.type === 'element' &&
+      'tagName' in element &&
+      typeof element.tagName === 'string'
+  )
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is Element}
+ */
+function looksLikeAnElement(value) {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'type' in value &&
+    'tagName' in value
+  )
+}
+
+/**
+ * @typedef {import('hast').Comment} Comment
+ * @typedef {import('hast').Element} Element
+ * @typedef {import('hast').Nodes} Nodes
+ * @typedef {import('hast').Parents} Parents
+ * @typedef {import('hast').Text} Text
+ * @typedef {import('hast-util-is-element').TestFunction} TestFunction
+ */
+
 
 const searchLineFeeds = /\n/g;
 const searchTabOrSpaces = /[\t ]+/g;
 
 const br = convertElement('br');
+const cell = convertElement(isCell);
 const p = convertElement('p');
-const cell = convertElement(['th', 'td']);
 const row = convertElement('tr');
 
 // Note that we don’t need to include void elements here as they don’t have text.
 // See: <https://github.com/wooorm/html-void-elements>
 const notRendered = convertElement([
-  // List from: <https://html.spec.whatwg.org/#hidden-elements>
+  // List from: <https://html.spec.whatwg.org/multipage/rendering.html#hidden-elements>
   'datalist',
   'head',
   'noembed',
@@ -401,11 +437,11 @@ const notRendered = convertElement([
   'title',
   // Hidden attribute.
   hidden,
-  // From: <https://html.spec.whatwg.org/#flow-content-3>
+  // From: <https://html.spec.whatwg.org/multipage/rendering.html#flow-content-3>
   closedDialog
 ]);
 
-// See: <https://html.spec.whatwg.org/#the-css-user-agent-style-sheet-and-presentational-hints>
+// See: <https://html.spec.whatwg.org/multipage/rendering.html#the-css-user-agent-style-sheet-and-presentational-hints>
 const blockOrCaption = convertElement([
   'address', // Flow content
   'article', // Sections and headings
@@ -435,6 +471,7 @@ const blockOrCaption = convertElement([
   'hr', // Flow content
   'html', // Page
   'legend', // Flow content
+  'li', // Lists (as `display: list-item`)
   'listing', // Flow content (legacy)
   'main', // Flow content
   'menu', // Lists
@@ -474,23 +511,21 @@ const blockOrCaption = convertElement([
  *     with Chinese, Japanese, or Yi writing systems
  * *   replaced elements (such as `audio`) are treated like non-replaced elements
  *
- * @param {Node} tree
+ * @param {Nodes} tree
  *   Tree to turn into text.
- * @param {Options} [options]
+ * @param {Readonly<Options> | null | undefined} [options]
  *   Configuration (optional).
  * @returns {string}
  *   Serialized `tree`.
  */
-function toText(tree, options = {}) {
+function toText(tree, options) {
+  const options_ = {};
   const children = 'children' in tree ? tree.children : [];
   const block = blockOrCaption(tree);
   const whitespace = inferWhitespace(tree, {
-    whitespace: options.whitespace || 'normal',
-    breakBefore: false,
-    breakAfter: false
-  });
+    whitespace: options_.whitespace || 'normal'});
 
-  /** @type {Array<string | BreakNumber>} */
+  /** @type {Array<BreakNumber | string>} */
   const results = [];
 
   // Treat `text` and `comment` as having normal white-space.
@@ -504,7 +539,6 @@ function toText(tree, options = {}) {
   if (tree.type === 'text' || tree.type === 'comment') {
     results.push(
       ...collectText(tree, {
-        whitespace,
         breakBefore: true,
         breakAfter: true
       })
@@ -532,13 +566,17 @@ function toText(tree, options = {}) {
     //      positive integer (a required line break count).
     // 3.2. For each item item in current, append item to results.
     results.push(
-      // @ts-expect-error Looks like a parent.
-      ...innerTextCollection(children[index], tree, {
-        whitespace,
-        breakBefore: index ? undefined : block,
-        breakAfter:
-          index < children.length - 1 ? br(children[index + 1]) : block
-      })
+      ...renderedTextCollection(
+        children[index],
+        // @ts-expect-error: `tree` is a parent if we’re here.
+        tree,
+        {
+          whitespace,
+          breakBefore: index ? undefined : block,
+          breakAfter:
+            index < children.length - 1 ? br(children[index + 1]) : block
+        }
+      )
     );
   }
 
@@ -576,14 +614,14 @@ function toText(tree, options = {}) {
 }
 
 /**
- * <https://html.spec.whatwg.org/#inner-text-collection-steps>
+ * <https://html.spec.whatwg.org/multipage/dom.html#rendered-text-collection-steps>
  *
- * @param {Node} node
- * @param {Parent} parent
+ * @param {Nodes} node
+ * @param {Parents} parent
  * @param {CollectionInfo} info
- * @returns {Array<string | BreakNumber>}
+ * @returns {Array<BreakNumber | string>}
  */
-function innerTextCollection(node, parent, info) {
+function renderedTextCollection(node, parent, info) {
   if (node.type === 'element') {
     return collectElement(node, parent, info)
   }
@@ -602,17 +640,17 @@ function innerTextCollection(node, parent, info) {
  *
  * @param {Element} node
  *   Element node.
- * @param {Parent} parent
+ * @param {Parents} parent
  * @param {CollectionInfo} info
  *   Info on current collection.
- * @returns {Array<string | BreakNumber>}
+ * @returns {Array<BreakNumber | string>}
  */
 function collectElement(node, parent, info) {
   // First we infer the `white-space` property.
   const whitespace = inferWhitespace(node, info);
   const children = node.children || [];
   let index = -1;
-  /** @type {Array<string | BreakNumber>} */
+  /** @type {Array<BreakNumber | string>} */
   let items = [];
 
   // We’re ignoring point 3, and exiting without any content here, because we
@@ -623,7 +661,7 @@ function collectElement(node, parent, info) {
 
   /** @type {BreakNumber | undefined} */
   let prefix;
-  /** @type {BreakNumber | BreakForce | undefined} */
+  /** @type {BreakForce | BreakNumber | undefined} */
   let suffix;
   // Note: we first detect if there is going to be a break before or after the
   // contents, as that changes the white-space handling.
@@ -650,10 +688,14 @@ function collectElement(node, parent, info) {
   //     box, then append a string containing a single U+000A LINE FEED (LF)
   //     character to items.
   //
-  //     See: <https://html.spec.whatwg.org/#tables-2>
+  //     See: <https://html.spec.whatwg.org/multipage/rendering.html#tables-2>
   //     Note: needs further investigation as this does not account for implicit
   //     rows.
-  else if (row(node) && findAfter(parent, node, row)) {
+  else if (
+    row(node) &&
+    // @ts-expect-error: something up with types of parents.
+    findAfter(parent, node, row)
+  ) {
     suffix = '\n';
   }
 
@@ -677,7 +719,7 @@ function collectElement(node, parent, info) {
   //     results to a single list.
   while (++index < children.length) {
     items = items.concat(
-      innerTextCollection(children[index], node, {
+      renderedTextCollection(children[index], node, {
         whitespace,
         breakBefore: index ? undefined : prefix,
         breakAfter:
@@ -691,8 +733,12 @@ function collectElement(node, parent, info) {
   //     then append a string containing a single U+0009 CHARACTER TABULATION
   //     (tab) character to items.
   //
-  //     See: <https://html.spec.whatwg.org/#tables-2>
-  if (cell(node) && findAfter(parent, node, cell)) {
+  //     See: <https://html.spec.whatwg.org/multipage/rendering.html#tables-2>
+  if (
+    cell(node) &&
+    // @ts-expect-error: something up with types of parents.
+    findAfter(parent, node, cell)
+  ) {
     items.push('\t');
   }
 
@@ -720,18 +766,18 @@ function collectElement(node, parent, info) {
  *
  * See: <https://drafts.csswg.org/css-text/#white-space-phase-1>
  *
- * @param {Text | Comment} node
+ * @param {Comment | Text} node
  *   Text node.
  * @param {CollectionInfo} info
  *   Info on current collection.
- * @returns {Array<string | BreakNumber>}
+ * @returns {Array<BreakNumber | string>}
  *   Result.
  */
 function collectText(node, info) {
   const value = String(node.value);
   /** @type {Array<string>} */
   const lines = [];
-  /** @type {Array<string | BreakNumber>} */
+  /** @type {Array<BreakNumber | string>} */
   const result = [];
   let start = 0;
 
@@ -773,9 +819,9 @@ function collectText(node, info) {
     //     break is the zero-width space character (U+200B), then the break is
     //     removed, leaving behind the zero-width space.
     if (
-      lines[index].charCodeAt(lines[index].length - 1) === 0x200b /* ZWSP */ ||
+      lines[index].charCodeAt(lines[index].length - 1) === 0x20_0b /* ZWSP */ ||
       (index < lines.length - 1 &&
-        lines[index + 1].charCodeAt(0) === 0x200b) /* ZWSP */
+        lines[index + 1].charCodeAt(0) === 0x20_0b) /* ZWSP */
     ) {
       result.push(lines[index]);
       join = undefined;
@@ -817,7 +863,7 @@ function collectText(node, info) {
  *
  * @param {Text} node
  *   Text node.
- * @returns {Array<string | BreakNumber>}
+ * @returns {Array<BreakNumber | string>}
  *   Result.
  */
 function collectPreText(node) {
@@ -881,7 +927,7 @@ function trimAndCollapseSpacesAndTabs(value, breakBefore, breakAfter) {
  *
  * We don’t support void elements here (so `nobr wbr` -> `normal` is ignored).
  *
- * @param {Node} node
+ * @param {Nodes} node
  *   Node (typically `Element`).
  * @param {CollectionInfo} info
  *   Info on current collection.
@@ -890,7 +936,7 @@ function trimAndCollapseSpacesAndTabs(value, breakBefore, breakAfter) {
  */
 function inferWhitespace(node, info) {
   if (node.type === 'element') {
-    const props = node.properties || {};
+    const properties = node.properties || {};
     switch (node.tagName) {
       case 'listing':
       case 'plaintext':
@@ -903,12 +949,12 @@ function inferWhitespace(node, info) {
       }
 
       case 'pre': {
-        return props.wrap ? 'pre-wrap' : 'pre'
+        return properties.wrap ? 'pre-wrap' : 'pre'
       }
 
       case 'td':
       case 'th': {
-        return props.noWrap ? 'nowrap' : info.whitespace
+        return properties.noWrap ? 'nowrap' : info.whitespace
       }
 
       case 'textarea': {
@@ -920,36 +966,51 @@ function inferWhitespace(node, info) {
   return info.whitespace
 }
 
-/** @type {TestFunctionAnything} */
+/**
+ * @type {TestFunction}
+ * @param {Element} node
+ * @returns {node is {properties: {hidden: true}}}
+ */
 function hidden(node) {
   return Boolean((node.properties || {}).hidden)
 }
 
-/** @type {TestFunctionAnything} */
+/**
+ * @type {TestFunction}
+ * @param {Element} node
+ * @returns {node is {tagName: 'td' | 'th'}}
+ */
+function isCell(node) {
+  return node.tagName === 'td' || node.tagName === 'th'
+}
+
+/**
+ * @type {TestFunction}
+ */
 function closedDialog(node) {
   return node.tagName === 'dialog' && !(node.properties || {}).open
 }
 
 function titleToFrontMatter(options = {}) {
   if (!options.property) {
-    options.property = 'data';
+    options.property = "data";
   }
   return (ast, vfile) => {
     if (vfile[options.property] && vfile[options.property].noTitleToFrontmatter)
-      return
-    if (!ast.children.length) return
+      return;
+    if (!ast.children.length) return;
     let index = 0;
-    if (ast.children[0].type === 'yaml') index++;
+    if (ast.children[0].type === "yaml") index++;
     const child = ast.children[index];
-    if (child === undefined) return // no content, just some frontmatter
-    if (child.type === 'heading' && child.depth === 1) {
+    if (child === undefined) return; // no content, just some frontmatter
+    if (child.type === "heading" && child.depth === 1) {
       if (!vfile[options.property]) vfile[options.property] = {};
       if (!vfile[options.property].title)
         vfile[options.property].title = toText(child);
       ast.children.splice(index, 1);
     }
-    return null
-  }
+    return null;
+  };
 }
 
 module.exports = titleToFrontMatter;

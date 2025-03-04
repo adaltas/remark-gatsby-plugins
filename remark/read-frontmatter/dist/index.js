@@ -1,1 +1,1 @@
-import a from"js-yaml";var i=function({property:t=void 0}={}){return(e,o)=>{for(let r of e.children){if(r.type!=="yaml")continue;let n=a.load(r.value);t?o.data[t]=n:o.data=n}}},d=i;export{d as default};
+import d from"js-yaml";import i from"smol-toml";var l=function({property:e=void 0,override:n=!1}={}){return(r,t)=>{for(let o of r.children){let a;switch(o.type){case"yaml":a=d.load(o.value);break;case"toml":a=i.parse(o.value);break;default:continue}e?n?t.data[e]=a:t.data[e]={...t.data[e]||{},...a}:n?t.data=a:t.data={...t.data,...a}}}},c=l;export{c as default};

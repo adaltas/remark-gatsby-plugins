@@ -15,42 +15,46 @@
  * The created function is a bit faster because it expects valid input only:
  * a `node`, `index`, and `parent`.
  *
- * @param test
+ * @param {Test} test
  *   *   when nullish, checks if `node` is a `Node`.
  *   *   when `string`, works like passing `(node) => node.type === test`.
  *   *   when `function` checks if function passed the node is true.
  *   *   when `object`, checks that all keys in test are in node, and that they have (strictly) equal values.
  *   *   when `array`, checks if any one of the subtests pass.
- * @returns
+ * @returns {Check}
  *   An assertion.
  */
 const convert =
+  // Note: overloads in JSDoc can’t yet use different `@template`s.
   /**
    * @type {(
-   *   (<Kind extends Node>(test: PredicateTest<Kind>) => AssertPredicate<Kind>) &
-   *   ((test?: Test) => AssertAnything)
+   *   (<Condition extends string>(test: Condition) => (node: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node & {type: Condition}) &
+   *   (<Condition extends Props>(test: Condition) => (node: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node & Condition) &
+   *   (<Condition extends TestFunction>(test: Condition) => (node: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node & Predicate<Condition, Node>) &
+   *   ((test?: null | undefined) => (node?: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node) &
+   *   ((test?: Test) => Check)
    * )}
    */
   (
     /**
      * @param {Test} [test]
-     * @returns {AssertAnything}
+     * @returns {Check}
      */
     function (test) {
-      if (test === undefined || test === null) {
+      if (test === null || test === undefined) {
         return ok
       }
 
-      if (typeof test === 'string') {
-        return typeFactory(test)
+      if (typeof test === 'function') {
+        return castFactory(test)
       }
 
       if (typeof test === 'object') {
         return Array.isArray(test) ? anyFactory(test) : propsFactory(test)
       }
 
-      if (typeof test === 'function') {
-        return castFactory(test)
+      if (typeof test === 'string') {
+        return typeFactory(test)
       }
 
       throw new Error('Expected function, string, or object as test')
@@ -58,11 +62,11 @@ const convert =
   );
 
 /**
- * @param {Array<string | Props | TestFunctionAnything>} tests
- * @returns {AssertAnything}
+ * @param {Array<Props | TestFunction | string>} tests
+ * @returns {Check}
  */
 function anyFactory(tests) {
-  /** @type {Array<AssertAnything>} */
+  /** @type {Array<Check>} */
   const checks = [];
   let index = -1;
 
@@ -74,14 +78,13 @@ function anyFactory(tests) {
 
   /**
    * @this {unknown}
-   * @param {Array<unknown>} parameters
-   * @returns {boolean}
+   * @type {TestFunction}
    */
   function any(...parameters) {
     let index = -1;
 
     while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
+      if (checks[index].apply(this, parameters)) return true
     }
 
     return false
@@ -92,9 +95,11 @@ function anyFactory(tests) {
  * Turn an object into a test for a node with a certain fields.
  *
  * @param {Props} check
- * @returns {AssertAnything}
+ * @returns {Check}
  */
 function propsFactory(check) {
+  const checkAsRecord = /** @type {Record<string, unknown>} */ (check);
+
   return castFactory(all)
 
   /**
@@ -102,12 +107,15 @@ function propsFactory(check) {
    * @returns {boolean}
    */
   function all(node) {
+    const nodeAsRecord = /** @type {Record<string, unknown>} */ (
+      /** @type {unknown} */ (node)
+    );
+
     /** @type {string} */
     let key;
 
     for (key in check) {
-      // @ts-expect-error: hush, it sure works as an index.
-      if (node[key] !== check[key]) return false
+      if (nodeAsRecord[key] !== checkAsRecord[key]) return false
     }
 
     return true
@@ -118,7 +126,7 @@ function propsFactory(check) {
  * Turn a string into a test for a node with a certain type.
  *
  * @param {string} check
- * @returns {AssertAnything}
+ * @returns {Check}
  */
 function typeFactory(check) {
   return castFactory(type)
@@ -134,25 +142,25 @@ function typeFactory(check) {
 /**
  * Turn a custom test into a test for a node that passes that test.
  *
- * @param {TestFunctionAnything} check
- * @returns {AssertAnything}
+ * @param {TestFunction} testFunction
+ * @returns {Check}
  */
-function castFactory(check) {
-  return assertion
+function castFactory(testFunction) {
+  return check
 
   /**
    * @this {unknown}
-   * @param {unknown} node
-   * @param {Array<unknown>} parameters
-   * @returns {boolean}
+   * @type {Check}
    */
-  function assertion(node, ...parameters) {
+  function check(value, index, parent) {
     return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        // @ts-expect-error: fine.
-        Boolean(check.call(this, node, ...parameters))
+      looksLikeANode(value) &&
+        testFunction.call(
+          this,
+          value,
+          typeof index === 'number' ? index : undefined,
+          parent || undefined
+        )
     )
   }
 }
@@ -162,19 +170,29 @@ function ok() {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {value is Node}
+ */
+function looksLikeANode(value) {
+  return value !== null && typeof value === 'object' && 'type' in value
+}
+
+/**
  * @param {string} d
  * @returns {string}
  */
 function color(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
+  return d
 }
 
 /**
- * @typedef {import('unist').Node} Node
- * @typedef {import('unist').Parent} Parent
- * @typedef {import('unist-util-is').Test} Test
+ * @typedef {import('unist').Node} UnistNode
+ * @typedef {import('unist').Parent} UnistParent
  */
 
+
+/** @type {Readonly<ActionTuple>} */
+const empty = [];
 
 /**
  * Continue traversing as normal.
@@ -209,124 +227,133 @@ const SKIP = 'skip';
  * You can change the tree.
  * See `Visitor` for more info.
  *
- * @param tree
+ * @overload
+ * @param {Tree} tree
+ * @param {Check} check
+ * @param {BuildVisitor<Tree, Check>} visitor
+ * @param {boolean | null | undefined} [reverse]
+ * @returns {undefined}
+ *
+ * @overload
+ * @param {Tree} tree
+ * @param {BuildVisitor<Tree>} visitor
+ * @param {boolean | null | undefined} [reverse]
+ * @returns {undefined}
+ *
+ * @param {UnistNode} tree
  *   Tree to traverse.
- * @param test
+ * @param {Visitor | Test} test
  *   `unist-util-is`-compatible test
- * @param visitor
+ * @param {Visitor | boolean | null | undefined} [visitor]
  *   Handle each node.
- * @param reverse
+ * @param {boolean | null | undefined} [reverse]
  *   Traverse in reverse preorder (NRL) instead of the default preorder (NLR).
- * @returns
+ * @returns {undefined}
  *   Nothing.
+ *
+ * @template {UnistNode} Tree
+ *   Node type.
+ * @template {Test} Check
+ *   `unist-util-is`-compatible test.
  */
-const visitParents =
+function visitParents(tree, test, visitor, reverse) {
+  /** @type {Test} */
+  let check;
+
+  if (typeof test === 'function' && typeof visitor !== 'function') {
+    reverse = visitor;
+    // @ts-expect-error no visitor given, so `visitor` is test.
+    visitor = test;
+  } else {
+    // @ts-expect-error visitor given, so `test` isn’t a visitor.
+    check = test;
+  }
+
+  const is = convert(check);
+  const step = reverse ? -1 : 1;
+
+  factory(tree, undefined, [])();
+
   /**
-   * @type {(
-   *   (<Tree extends Node, Check extends Test>(tree: Tree, test: Check, visitor: BuildVisitor<Tree, Check>, reverse?: boolean | null | undefined) => void) &
-   *   (<Tree extends Node>(tree: Tree, visitor: BuildVisitor<Tree>, reverse?: boolean | null | undefined) => void)
-   * )}
+   * @param {UnistNode} node
+   * @param {number | undefined} index
+   * @param {Array<UnistParent>} parents
    */
-  (
-    /**
-     * @param {Node} tree
-     * @param {Test} test
-     * @param {Visitor<Node>} visitor
-     * @param {boolean | null | undefined} [reverse]
-     * @returns {void}
-     */
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        // @ts-expect-error no visitor given, so `visitor` is test.
-        visitor = test;
-        test = null;
-      }
+  function factory(node, index, parents) {
+    const value = /** @type {Record<string, unknown>} */ (
+      node && typeof node === 'object' ? node : {}
+    );
 
-      const is = convert(test);
-      const step = reverse ? -1 : 1;
+    if (typeof value.type === 'string') {
+      const name =
+        // `hast`
+        typeof value.tagName === 'string'
+          ? value.tagName
+          : // `xast`
+          typeof value.name === 'string'
+          ? value.name
+          : undefined;
 
-      factory(tree, undefined, [])();
+      Object.defineProperty(visit, 'name', {
+        value:
+          'node (' + color(node.type + (name ? '<' + name + '>' : '')) + ')'
+      });
+    }
 
-      /**
-       * @param {Node} node
-       * @param {number | undefined} index
-       * @param {Array<Parent>} parents
-       */
-      function factory(node, index, parents) {
-        /** @type {Record<string, unknown>} */
-        // @ts-expect-error: hush
-        const value = node && typeof node === 'object' ? node : {};
+    return visit
 
-        if (typeof value.type === 'string') {
-          const name =
-            // `hast`
-            typeof value.tagName === 'string'
-              ? value.tagName
-              : // `xast`
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
+    function visit() {
+      /** @type {Readonly<ActionTuple>} */
+      let result = empty;
+      /** @type {Readonly<ActionTuple>} */
+      let subresult;
+      /** @type {number} */
+      let offset;
+      /** @type {Array<UnistParent>} */
+      let grandparents;
 
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
+      if (!test || is(node, index, parents[parents.length - 1] || undefined)) {
+        // @ts-expect-error: `visitor` is now a visitor.
+        result = toResult(visitor(node, parents));
 
-        return visit
-
-        function visit() {
-          /** @type {ActionTuple} */
-          let result = [];
-          /** @type {ActionTuple} */
-          let subresult;
-          /** @type {number} */
-          let offset;
-          /** @type {Array<Parent>} */
-          let grandparents;
-
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult(visitor(node, parents));
-
-            if (result[0] === EXIT) {
-              return result
-            }
-          }
-
-          // @ts-expect-error looks like a parent.
-          if (node.children && result[0] !== SKIP) {
-            // @ts-expect-error looks like a parent.
-            offset = (reverse ? node.children.length : -1) + step;
-            // @ts-expect-error looks like a parent.
-            grandparents = parents.concat(node);
-
-            // @ts-expect-error looks like a parent.
-            while (offset > -1 && offset < node.children.length) {
-              // @ts-expect-error looks like a parent.
-              subresult = factory(node.children[offset], offset, grandparents)();
-
-              if (subresult[0] === EXIT) {
-                return subresult
-              }
-
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-
+        if (result[0] === EXIT) {
           return result
         }
       }
+
+      if ('children' in node && node.children) {
+        const nodeAsParent = /** @type {UnistParent} */ (node);
+
+        if (nodeAsParent.children && result[0] !== SKIP) {
+          offset = (reverse ? nodeAsParent.children.length : -1) + step;
+          grandparents = parents.concat(nodeAsParent);
+
+          while (offset > -1 && offset < nodeAsParent.children.length) {
+            const child = nodeAsParent.children[offset];
+
+            subresult = factory(child, offset, grandparents)();
+
+            if (subresult[0] === EXIT) {
+              return subresult
+            }
+
+            offset =
+              typeof subresult[1] === 'number' ? subresult[1] : offset + step;
+          }
+        }
+      }
+
+      return result
     }
-  );
+  }
+}
 
 /**
  * Turn a return value into a clean result.
  *
  * @param {VisitorResult} value
  *   Valid return values from visitors.
- * @returns {ActionTuple}
+ * @returns {Readonly<ActionTuple>}
  *   Clean result.
  */
 function toResult(value) {
@@ -338,13 +365,12 @@ function toResult(value) {
     return [CONTINUE, value]
   }
 
-  return [value]
+  return value === null || value === undefined ? empty : [value]
 }
 
 /**
- * @typedef {import('unist').Node} Node
- * @typedef {import('unist').Parent} Parent
- * @typedef {import('unist-util-is').Test} Test
+ * @typedef {import('unist').Node} UnistNode
+ * @typedef {import('unist').Parent} UnistParent
  * @typedef {import('unist-util-visit-parents').VisitorResult} VisitorResult
  */
 
@@ -367,63 +393,71 @@ function toResult(value) {
  * You can change the tree.
  * See `Visitor` for more info.
  *
- * @param tree
+ * @overload
+ * @param {Tree} tree
+ * @param {Check} check
+ * @param {BuildVisitor<Tree, Check>} visitor
+ * @param {boolean | null | undefined} [reverse]
+ * @returns {undefined}
+ *
+ * @overload
+ * @param {Tree} tree
+ * @param {BuildVisitor<Tree>} visitor
+ * @param {boolean | null | undefined} [reverse]
+ * @returns {undefined}
+ *
+ * @param {UnistNode} tree
  *   Tree to traverse.
- * @param test
- *   `unist-util-is`-compatible test
- * @param visitor
- *   Handle each node.
- * @param reverse
+ * @param {Visitor | Test} testOrVisitor
+ *   `unist-util-is`-compatible test (optional, omit to pass a visitor).
+ * @param {Visitor | boolean | null | undefined} [visitorOrReverse]
+ *   Handle each node (when test is omitted, pass `reverse`).
+ * @param {boolean | null | undefined} [maybeReverse=false]
  *   Traverse in reverse preorder (NRL) instead of the default preorder (NLR).
- * @returns
+ * @returns {undefined}
  *   Nothing.
+ *
+ * @template {UnistNode} Tree
+ *   Node type.
+ * @template {Test} Check
+ *   `unist-util-is`-compatible test.
  */
-const visit =
+function visit(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
+  /** @type {boolean | null | undefined} */
+  let reverse;
+  /** @type {Test} */
+  let test;
+  /** @type {Visitor} */
+  let visitor;
+
+  {
+    // @ts-expect-error: assume the overload with test was given.
+    test = testOrVisitor;
+    // @ts-expect-error: assume the overload with test was given.
+    visitor = visitorOrReverse;
+    reverse = maybeReverse;
+  }
+
+  visitParents(tree, test, overload, reverse);
+
   /**
-   * @type {(
-   *   (<Tree extends Node, Check extends Test>(tree: Tree, test: Check, visitor: BuildVisitor<Tree, Check>, reverse?: boolean | null | undefined) => void) &
-   *   (<Tree extends Node>(tree: Tree, visitor: BuildVisitor<Tree>, reverse?: boolean | null | undefined) => void)
-   * )}
+   * @param {UnistNode} node
+   * @param {Array<UnistParent>} parents
    */
-  (
-    /**
-     * @param {Node} tree
-     * @param {Test} test
-     * @param {Visitor} visitor
-     * @param {boolean | null | undefined} [reverse]
-     * @returns {void}
-     */
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
+  function overload(node, parents) {
+    const parent = parents[parents.length - 1];
+    const index = parent ? parent.children.indexOf(node) : undefined;
+    return visitor(node, index, parent)
+  }
+}
 
-      visitParents(tree, test, overload, reverse);
-
-      /**
-       * @param {Node} node
-       * @param {Array<Parent>} parents
-       */
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-function linksAbsolute (options) {
-  return (tree, file) =>
-    visit(tree, 'link', (node) => {
-      if(options.baseURL && /^\//.test(node.url)){
+function linksAbsolute(options) {
+  return (tree) =>
+    visit(tree, "link", (node) => {
+      if (options.baseURL && /^\//.test(node.url)) {
         node.url = new URL(node.url, options.baseURL).href;
       }
-    })
-  }
+    });
+}
 
 module.exports = linksAbsolute;

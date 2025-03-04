@@ -1,9 +1,5 @@
 'use strict';
 
-var proc = require('process');
-var url = require('url');
-var path$1 = require('path');
-
 /**
  * @typedef {import('unist').Node} Node
  * @typedef {import('unist').Parent} Parent
@@ -19,42 +15,46 @@ var path$1 = require('path');
  * The created function is a bit faster because it expects valid input only:
  * a `node`, `index`, and `parent`.
  *
- * @param test
+ * @param {Test} test
  *   *   when nullish, checks if `node` is a `Node`.
  *   *   when `string`, works like passing `(node) => node.type === test`.
  *   *   when `function` checks if function passed the node is true.
  *   *   when `object`, checks that all keys in test are in node, and that they have (strictly) equal values.
  *   *   when `array`, checks if any one of the subtests pass.
- * @returns
+ * @returns {Check}
  *   An assertion.
  */
 const convert =
+  // Note: overloads in JSDoc can’t yet use different `@template`s.
   /**
    * @type {(
-   *   (<Kind extends Node>(test: PredicateTest<Kind>) => AssertPredicate<Kind>) &
-   *   ((test?: Test) => AssertAnything)
+   *   (<Condition extends string>(test: Condition) => (node: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node & {type: Condition}) &
+   *   (<Condition extends Props>(test: Condition) => (node: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node & Condition) &
+   *   (<Condition extends TestFunction>(test: Condition) => (node: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node & Predicate<Condition, Node>) &
+   *   ((test?: null | undefined) => (node?: unknown, index?: number | null | undefined, parent?: Parent | null | undefined, context?: unknown) => node is Node) &
+   *   ((test?: Test) => Check)
    * )}
    */
   (
     /**
      * @param {Test} [test]
-     * @returns {AssertAnything}
+     * @returns {Check}
      */
     function (test) {
-      if (test === undefined || test === null) {
-        return ok
+      if (test === null || test === undefined) {
+        return ok$1
       }
 
-      if (typeof test === 'string') {
-        return typeFactory(test)
+      if (typeof test === 'function') {
+        return castFactory(test)
       }
 
       if (typeof test === 'object') {
         return Array.isArray(test) ? anyFactory(test) : propsFactory(test)
       }
 
-      if (typeof test === 'function') {
-        return castFactory(test)
+      if (typeof test === 'string') {
+        return typeFactory(test)
       }
 
       throw new Error('Expected function, string, or object as test')
@@ -62,11 +62,11 @@ const convert =
   );
 
 /**
- * @param {Array<string | Props | TestFunctionAnything>} tests
- * @returns {AssertAnything}
+ * @param {Array<Props | TestFunction | string>} tests
+ * @returns {Check}
  */
 function anyFactory(tests) {
-  /** @type {Array<AssertAnything>} */
+  /** @type {Array<Check>} */
   const checks = [];
   let index = -1;
 
@@ -78,14 +78,13 @@ function anyFactory(tests) {
 
   /**
    * @this {unknown}
-   * @param {Array<unknown>} parameters
-   * @returns {boolean}
+   * @type {TestFunction}
    */
   function any(...parameters) {
     let index = -1;
 
     while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
+      if (checks[index].apply(this, parameters)) return true
     }
 
     return false
@@ -96,9 +95,11 @@ function anyFactory(tests) {
  * Turn an object into a test for a node with a certain fields.
  *
  * @param {Props} check
- * @returns {AssertAnything}
+ * @returns {Check}
  */
 function propsFactory(check) {
+  const checkAsRecord = /** @type {Record<string, unknown>} */ (check);
+
   return castFactory(all)
 
   /**
@@ -106,12 +107,15 @@ function propsFactory(check) {
    * @returns {boolean}
    */
   function all(node) {
+    const nodeAsRecord = /** @type {Record<string, unknown>} */ (
+      /** @type {unknown} */ (node)
+    );
+
     /** @type {string} */
     let key;
 
     for (key in check) {
-      // @ts-expect-error: hush, it sure works as an index.
-      if (node[key] !== check[key]) return false
+      if (nodeAsRecord[key] !== checkAsRecord[key]) return false
     }
 
     return true
@@ -122,7 +126,7 @@ function propsFactory(check) {
  * Turn a string into a test for a node with a certain type.
  *
  * @param {string} check
- * @returns {AssertAnything}
+ * @returns {Check}
  */
 function typeFactory(check) {
   return castFactory(type)
@@ -138,31 +142,39 @@ function typeFactory(check) {
 /**
  * Turn a custom test into a test for a node that passes that test.
  *
- * @param {TestFunctionAnything} check
- * @returns {AssertAnything}
+ * @param {TestFunction} testFunction
+ * @returns {Check}
  */
-function castFactory(check) {
-  return assertion
+function castFactory(testFunction) {
+  return check
 
   /**
    * @this {unknown}
-   * @param {unknown} node
-   * @param {Array<unknown>} parameters
-   * @returns {boolean}
+   * @type {Check}
    */
-  function assertion(node, ...parameters) {
+  function check(value, index, parent) {
     return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        // @ts-expect-error: fine.
-        Boolean(check.call(this, node, ...parameters))
+      looksLikeANode(value) &&
+        testFunction.call(
+          this,
+          value,
+          typeof index === 'number' ? index : undefined,
+          parent || undefined
+        )
     )
   }
 }
 
-function ok() {
+function ok$1() {
   return true
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is Node}
+ */
+function looksLikeANode(value) {
+  return value !== null && typeof value === 'object' && 'type' in value
 }
 
 /**
@@ -170,15 +182,17 @@ function ok() {
  * @returns {string}
  */
 function color(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
+  return d
 }
 
 /**
- * @typedef {import('unist').Node} Node
- * @typedef {import('unist').Parent} Parent
- * @typedef {import('unist-util-is').Test} Test
+ * @typedef {import('unist').Node} UnistNode
+ * @typedef {import('unist').Parent} UnistParent
  */
 
+
+/** @type {Readonly<ActionTuple>} */
+const empty = [];
 
 /**
  * Continue traversing as normal.
@@ -213,124 +227,133 @@ const SKIP = 'skip';
  * You can change the tree.
  * See `Visitor` for more info.
  *
- * @param tree
+ * @overload
+ * @param {Tree} tree
+ * @param {Check} check
+ * @param {BuildVisitor<Tree, Check>} visitor
+ * @param {boolean | null | undefined} [reverse]
+ * @returns {undefined}
+ *
+ * @overload
+ * @param {Tree} tree
+ * @param {BuildVisitor<Tree>} visitor
+ * @param {boolean | null | undefined} [reverse]
+ * @returns {undefined}
+ *
+ * @param {UnistNode} tree
  *   Tree to traverse.
- * @param test
+ * @param {Visitor | Test} test
  *   `unist-util-is`-compatible test
- * @param visitor
+ * @param {Visitor | boolean | null | undefined} [visitor]
  *   Handle each node.
- * @param reverse
+ * @param {boolean | null | undefined} [reverse]
  *   Traverse in reverse preorder (NRL) instead of the default preorder (NLR).
- * @returns
+ * @returns {undefined}
  *   Nothing.
+ *
+ * @template {UnistNode} Tree
+ *   Node type.
+ * @template {Test} Check
+ *   `unist-util-is`-compatible test.
  */
-const visitParents =
+function visitParents(tree, test, visitor, reverse) {
+  /** @type {Test} */
+  let check;
+
+  if (typeof test === 'function' && typeof visitor !== 'function') {
+    reverse = visitor;
+    // @ts-expect-error no visitor given, so `visitor` is test.
+    visitor = test;
+  } else {
+    // @ts-expect-error visitor given, so `test` isn’t a visitor.
+    check = test;
+  }
+
+  const is = convert(check);
+  const step = reverse ? -1 : 1;
+
+  factory(tree, undefined, [])();
+
   /**
-   * @type {(
-   *   (<Tree extends Node, Check extends Test>(tree: Tree, test: Check, visitor: BuildVisitor<Tree, Check>, reverse?: boolean | null | undefined) => void) &
-   *   (<Tree extends Node>(tree: Tree, visitor: BuildVisitor<Tree>, reverse?: boolean | null | undefined) => void)
-   * )}
+   * @param {UnistNode} node
+   * @param {number | undefined} index
+   * @param {Array<UnistParent>} parents
    */
-  (
-    /**
-     * @param {Node} tree
-     * @param {Test} test
-     * @param {Visitor<Node>} visitor
-     * @param {boolean | null | undefined} [reverse]
-     * @returns {void}
-     */
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        // @ts-expect-error no visitor given, so `visitor` is test.
-        visitor = test;
-        test = null;
-      }
+  function factory(node, index, parents) {
+    const value = /** @type {Record<string, unknown>} */ (
+      node && typeof node === 'object' ? node : {}
+    );
 
-      const is = convert(test);
-      const step = reverse ? -1 : 1;
+    if (typeof value.type === 'string') {
+      const name =
+        // `hast`
+        typeof value.tagName === 'string'
+          ? value.tagName
+          : // `xast`
+          typeof value.name === 'string'
+          ? value.name
+          : undefined;
 
-      factory(tree, undefined, [])();
+      Object.defineProperty(visit, 'name', {
+        value:
+          'node (' + color(node.type + (name ? '<' + name + '>' : '')) + ')'
+      });
+    }
 
-      /**
-       * @param {Node} node
-       * @param {number | undefined} index
-       * @param {Array<Parent>} parents
-       */
-      function factory(node, index, parents) {
-        /** @type {Record<string, unknown>} */
-        // @ts-expect-error: hush
-        const value = node && typeof node === 'object' ? node : {};
+    return visit
 
-        if (typeof value.type === 'string') {
-          const name =
-            // `hast`
-            typeof value.tagName === 'string'
-              ? value.tagName
-              : // `xast`
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
+    function visit() {
+      /** @type {Readonly<ActionTuple>} */
+      let result = empty;
+      /** @type {Readonly<ActionTuple>} */
+      let subresult;
+      /** @type {number} */
+      let offset;
+      /** @type {Array<UnistParent>} */
+      let grandparents;
 
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
+      if (!test || is(node, index, parents[parents.length - 1] || undefined)) {
+        // @ts-expect-error: `visitor` is now a visitor.
+        result = toResult(visitor(node, parents));
 
-        return visit
-
-        function visit() {
-          /** @type {ActionTuple} */
-          let result = [];
-          /** @type {ActionTuple} */
-          let subresult;
-          /** @type {number} */
-          let offset;
-          /** @type {Array<Parent>} */
-          let grandparents;
-
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult(visitor(node, parents));
-
-            if (result[0] === EXIT) {
-              return result
-            }
-          }
-
-          // @ts-expect-error looks like a parent.
-          if (node.children && result[0] !== SKIP) {
-            // @ts-expect-error looks like a parent.
-            offset = (reverse ? node.children.length : -1) + step;
-            // @ts-expect-error looks like a parent.
-            grandparents = parents.concat(node);
-
-            // @ts-expect-error looks like a parent.
-            while (offset > -1 && offset < node.children.length) {
-              // @ts-expect-error looks like a parent.
-              subresult = factory(node.children[offset], offset, grandparents)();
-
-              if (subresult[0] === EXIT) {
-                return subresult
-              }
-
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-
+        if (result[0] === EXIT) {
           return result
         }
       }
+
+      if ('children' in node && node.children) {
+        const nodeAsParent = /** @type {UnistParent} */ (node);
+
+        if (nodeAsParent.children && result[0] !== SKIP) {
+          offset = (reverse ? nodeAsParent.children.length : -1) + step;
+          grandparents = parents.concat(nodeAsParent);
+
+          while (offset > -1 && offset < nodeAsParent.children.length) {
+            const child = nodeAsParent.children[offset];
+
+            subresult = factory(child, offset, grandparents)();
+
+            if (subresult[0] === EXIT) {
+              return subresult
+            }
+
+            offset =
+              typeof subresult[1] === 'number' ? subresult[1] : offset + step;
+          }
+        }
+      }
+
+      return result
     }
-  );
+  }
+}
 
 /**
  * Turn a return value into a clean result.
  *
  * @param {VisitorResult} value
  *   Valid return values from visitors.
- * @returns {ActionTuple}
+ * @returns {Readonly<ActionTuple>}
  *   Clean result.
  */
 function toResult(value) {
@@ -342,13 +365,12 @@ function toResult(value) {
     return [CONTINUE, value]
   }
 
-  return [value]
+  return value === null || value === undefined ? empty : [value]
 }
 
 /**
- * @typedef {import('unist').Node} Node
- * @typedef {import('unist').Parent} Parent
- * @typedef {import('unist-util-is').Test} Test
+ * @typedef {import('unist').Node} UnistNode
+ * @typedef {import('unist').Parent} UnistParent
  * @typedef {import('unist-util-visit-parents').VisitorResult} VisitorResult
  */
 
@@ -371,55 +393,70 @@ function toResult(value) {
  * You can change the tree.
  * See `Visitor` for more info.
  *
- * @param tree
+ * @overload
+ * @param {Tree} tree
+ * @param {Check} check
+ * @param {BuildVisitor<Tree, Check>} visitor
+ * @param {boolean | null | undefined} [reverse]
+ * @returns {undefined}
+ *
+ * @overload
+ * @param {Tree} tree
+ * @param {BuildVisitor<Tree>} visitor
+ * @param {boolean | null | undefined} [reverse]
+ * @returns {undefined}
+ *
+ * @param {UnistNode} tree
  *   Tree to traverse.
- * @param test
- *   `unist-util-is`-compatible test
- * @param visitor
- *   Handle each node.
- * @param reverse
+ * @param {Visitor | Test} testOrVisitor
+ *   `unist-util-is`-compatible test (optional, omit to pass a visitor).
+ * @param {Visitor | boolean | null | undefined} [visitorOrReverse]
+ *   Handle each node (when test is omitted, pass `reverse`).
+ * @param {boolean | null | undefined} [maybeReverse=false]
  *   Traverse in reverse preorder (NRL) instead of the default preorder (NLR).
- * @returns
+ * @returns {undefined}
  *   Nothing.
+ *
+ * @template {UnistNode} Tree
+ *   Node type.
+ * @template {Test} Check
+ *   `unist-util-is`-compatible test.
  */
-const visit =
+function visit(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
+  /** @type {boolean | null | undefined} */
+  let reverse;
+  /** @type {Test} */
+  let test;
+  /** @type {Visitor} */
+  let visitor;
+
+  if (
+    typeof testOrVisitor === 'function' &&
+    typeof visitorOrReverse !== 'function'
+  ) {
+    test = undefined;
+    visitor = testOrVisitor;
+    reverse = visitorOrReverse;
+  } else {
+    // @ts-expect-error: assume the overload with test was given.
+    test = testOrVisitor;
+    // @ts-expect-error: assume the overload with test was given.
+    visitor = visitorOrReverse;
+    reverse = maybeReverse;
+  }
+
+  visitParents(tree, test, overload, reverse);
+
   /**
-   * @type {(
-   *   (<Tree extends Node, Check extends Test>(tree: Tree, test: Check, visitor: BuildVisitor<Tree, Check>, reverse?: boolean | null | undefined) => void) &
-   *   (<Tree extends Node>(tree: Tree, visitor: BuildVisitor<Tree>, reverse?: boolean | null | undefined) => void)
-   * )}
+   * @param {UnistNode} node
+   * @param {Array<UnistParent>} parents
    */
-  (
-    /**
-     * @param {Node} tree
-     * @param {Test} test
-     * @param {Visitor} visitor
-     * @param {boolean | null | undefined} [reverse]
-     * @returns {void}
-     */
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-
-      visitParents(tree, test, overload, reverse);
-
-      /**
-       * @param {Node} node
-       * @param {Array<Parent>} parents
-       */
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
+  function overload(node, parents) {
+    const parent = parents[parents.length - 1];
+    const index = parent ? parent.children.indexOf(node) : undefined;
+    return visitor(node, index, parent)
+  }
+}
 
 /**
  * Throw a given error.
@@ -438,137 +475,135 @@ function getDefaultExportFromCjs (x) {
 	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
 }
 
-/*!
- * Determine if an object is a Buffer
- *
- * @author   Feross Aboukhadijeh <https://feross.org>
- * @license  MIT
- */
+var extend$1;
+var hasRequiredExtend;
 
-var isBuffer = function isBuffer (obj) {
-  return obj != null && obj.constructor != null &&
-    typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj)
-};
+function requireExtend () {
+	if (hasRequiredExtend) return extend$1;
+	hasRequiredExtend = 1;
 
-var isBuffer$1 = /*@__PURE__*/getDefaultExportFromCjs(isBuffer);
+	var hasOwn = Object.prototype.hasOwnProperty;
+	var toStr = Object.prototype.toString;
+	var defineProperty = Object.defineProperty;
+	var gOPD = Object.getOwnPropertyDescriptor;
 
-var hasOwn = Object.prototype.hasOwnProperty;
-var toStr = Object.prototype.toString;
-var defineProperty = Object.defineProperty;
-var gOPD = Object.getOwnPropertyDescriptor;
-
-var isArray = function isArray(arr) {
-	if (typeof Array.isArray === 'function') {
-		return Array.isArray(arr);
-	}
-
-	return toStr.call(arr) === '[object Array]';
-};
-
-var isPlainObject$1 = function isPlainObject(obj) {
-	if (!obj || toStr.call(obj) !== '[object Object]') {
-		return false;
-	}
-
-	var hasOwnConstructor = hasOwn.call(obj, 'constructor');
-	var hasIsPrototypeOf = obj.constructor && obj.constructor.prototype && hasOwn.call(obj.constructor.prototype, 'isPrototypeOf');
-	// Not own constructor property must be Object
-	if (obj.constructor && !hasOwnConstructor && !hasIsPrototypeOf) {
-		return false;
-	}
-
-	// Own properties are enumerated firstly, so to speed up,
-	// if last one is own, then all properties are own.
-	var key;
-	for (key in obj) { /**/ }
-
-	return typeof key === 'undefined' || hasOwn.call(obj, key);
-};
-
-// If name is '__proto__', and Object.defineProperty is available, define __proto__ as an own property on target
-var setProperty = function setProperty(target, options) {
-	if (defineProperty && options.name === '__proto__') {
-		defineProperty(target, options.name, {
-			enumerable: true,
-			configurable: true,
-			value: options.newValue,
-			writable: true
-		});
-	} else {
-		target[options.name] = options.newValue;
-	}
-};
-
-// Return undefined instead of __proto__ if '__proto__' is not an own property
-var getProperty = function getProperty(obj, name) {
-	if (name === '__proto__') {
-		if (!hasOwn.call(obj, name)) {
-			return void 0;
-		} else if (gOPD) {
-			// In early versions of node, obj['__proto__'] is buggy when obj has
-			// __proto__ as an own property. Object.getOwnPropertyDescriptor() works.
-			return gOPD(obj, name).value;
+	var isArray = function isArray(arr) {
+		if (typeof Array.isArray === 'function') {
+			return Array.isArray(arr);
 		}
-	}
 
-	return obj[name];
-};
+		return toStr.call(arr) === '[object Array]';
+	};
 
-var extend = function extend() {
-	var options, name, src, copy, copyIsArray, clone;
-	var target = arguments[0];
-	var i = 1;
-	var length = arguments.length;
-	var deep = false;
+	var isPlainObject = function isPlainObject(obj) {
+		if (!obj || toStr.call(obj) !== '[object Object]') {
+			return false;
+		}
 
-	// Handle a deep copy situation
-	if (typeof target === 'boolean') {
-		deep = target;
-		target = arguments[1] || {};
-		// skip the boolean and the target
-		i = 2;
-	}
-	if (target == null || (typeof target !== 'object' && typeof target !== 'function')) {
-		target = {};
-	}
+		var hasOwnConstructor = hasOwn.call(obj, 'constructor');
+		var hasIsPrototypeOf = obj.constructor && obj.constructor.prototype && hasOwn.call(obj.constructor.prototype, 'isPrototypeOf');
+		// Not own constructor property must be Object
+		if (obj.constructor && !hasOwnConstructor && !hasIsPrototypeOf) {
+			return false;
+		}
 
-	for (; i < length; ++i) {
-		options = arguments[i];
-		// Only deal with non-null/undefined values
-		if (options != null) {
-			// Extend the base object
-			for (name in options) {
-				src = getProperty(target, name);
-				copy = getProperty(options, name);
+		// Own properties are enumerated firstly, so to speed up,
+		// if last one is own, then all properties are own.
+		var key;
+		for (key in obj) { /**/ }
 
-				// Prevent never-ending loop
-				if (target !== copy) {
-					// Recurse if we're merging plain objects or arrays
-					if (deep && copy && (isPlainObject$1(copy) || (copyIsArray = isArray(copy)))) {
-						if (copyIsArray) {
-							copyIsArray = false;
-							clone = src && isArray(src) ? src : [];
-						} else {
-							clone = src && isPlainObject$1(src) ? src : {};
+		return typeof key === 'undefined' || hasOwn.call(obj, key);
+	};
+
+	// If name is '__proto__', and Object.defineProperty is available, define __proto__ as an own property on target
+	var setProperty = function setProperty(target, options) {
+		if (defineProperty && options.name === '__proto__') {
+			defineProperty(target, options.name, {
+				enumerable: true,
+				configurable: true,
+				value: options.newValue,
+				writable: true
+			});
+		} else {
+			target[options.name] = options.newValue;
+		}
+	};
+
+	// Return undefined instead of __proto__ if '__proto__' is not an own property
+	var getProperty = function getProperty(obj, name) {
+		if (name === '__proto__') {
+			if (!hasOwn.call(obj, name)) {
+				return void 0;
+			} else if (gOPD) {
+				// In early versions of node, obj['__proto__'] is buggy when obj has
+				// __proto__ as an own property. Object.getOwnPropertyDescriptor() works.
+				return gOPD(obj, name).value;
+			}
+		}
+
+		return obj[name];
+	};
+
+	extend$1 = function extend() {
+		var options, name, src, copy, copyIsArray, clone;
+		var target = arguments[0];
+		var i = 1;
+		var length = arguments.length;
+		var deep = false;
+
+		// Handle a deep copy situation
+		if (typeof target === 'boolean') {
+			deep = target;
+			target = arguments[1] || {};
+			// skip the boolean and the target
+			i = 2;
+		}
+		if (target == null || (typeof target !== 'object' && typeof target !== 'function')) {
+			target = {};
+		}
+
+		for (; i < length; ++i) {
+			options = arguments[i];
+			// Only deal with non-null/undefined values
+			if (options != null) {
+				// Extend the base object
+				for (name in options) {
+					src = getProperty(target, name);
+					copy = getProperty(options, name);
+
+					// Prevent never-ending loop
+					if (target !== copy) {
+						// Recurse if we're merging plain objects or arrays
+						if (deep && copy && (isPlainObject(copy) || (copyIsArray = isArray(copy)))) {
+							if (copyIsArray) {
+								copyIsArray = false;
+								clone = src && isArray(src) ? src : [];
+							} else {
+								clone = src && isPlainObject(src) ? src : {};
+							}
+
+							// Never move original objects, clone them
+							setProperty(target, { name: name, newValue: extend(deep, clone, copy) });
+
+						// Don't bring in undefined values
+						} else if (typeof copy !== 'undefined') {
+							setProperty(target, { name: name, newValue: copy });
 						}
-
-						// Never move original objects, clone them
-						setProperty(target, { name: name, newValue: extend(deep, clone, copy) });
-
-					// Don't bring in undefined values
-					} else if (typeof copy !== 'undefined') {
-						setProperty(target, { name: name, newValue: copy });
 					}
 				}
 			}
 		}
-	}
 
-	// Return the modified object
-	return target;
-};
+		// Return the modified object
+		return target;
+	};
+	return extend$1;
+}
 
-var extend$1 = /*@__PURE__*/getDefaultExportFromCjs(extend);
+var extendExports = requireExtend();
+var extend = /*@__PURE__*/getDefaultExportFromCjs(extendExports);
+
+function ok() {}
 
 function isPlainObject(value) {
 	if (typeof value !== 'object' || value === null) {
@@ -579,22 +614,43 @@ function isPlainObject(value) {
 	return (prototype === null || prototype === Object.prototype || Object.getPrototypeOf(prototype) === null) && !(Symbol.toStringTag in value) && !(Symbol.iterator in value);
 }
 
+// To do: remove `void`s
+// To do: remove `null` from output of our APIs, allow it as user APIs.
+
 /**
- * @typedef {(error?: Error|null|undefined, ...output: Array<any>) => void} Callback
+ * @typedef {(error?: Error | null | undefined, ...output: Array<any>) => void} Callback
+ *   Callback.
+ *
  * @typedef {(...input: Array<any>) => any} Middleware
+ *   Ware.
+ *
+ * @typedef Pipeline
+ *   Pipeline.
+ * @property {Run} run
+ *   Run the pipeline.
+ * @property {Use} use
+ *   Add middleware.
  *
  * @typedef {(...input: Array<any>) => void} Run
  *   Call all middleware.
+ *
+ *   Calls `done` on completion with either an error or the output of the
+ *   last middleware.
+ *
+ *   > 👉 **Note**: as the length of input defines whether async functions get a
+ *   > `next` function,
+ *   > it’s recommended to keep `input` at one value normally.
+
+ *
  * @typedef {(fn: Middleware) => Pipeline} Use
- *   Add `fn` (middleware) to the list.
- * @typedef {{run: Run, use: Use}} Pipeline
- *   Middleware.
+ *   Add middleware.
  */
 
 /**
  * Create new middleware.
  *
  * @returns {Pipeline}
+ *   Pipeline.
  */
 function trough() {
   /** @type {Array<Middleware>} */
@@ -619,7 +675,7 @@ function trough() {
     /**
      * Run the next `fn`, or we’re done.
      *
-     * @param {Error|null|undefined} error
+     * @param {Error | null | undefined} error
      * @param {Array<any>} output
      */
     function next(error, ...output) {
@@ -664,12 +720,36 @@ function trough() {
 }
 
 /**
- * Wrap `middleware`.
- * Can be sync or async; return a promise, receive a callback, or return new
- * values and errors.
+ * Wrap `middleware` into a uniform interface.
+ *
+ * You can pass all input to the resulting function.
+ * `callback` is then called with the output of `middleware`.
+ *
+ * If `middleware` accepts more arguments than the later given in input,
+ * an extra `done` function is passed to it after that input,
+ * which must be called by `middleware`.
+ *
+ * The first value in `input` is the main input value.
+ * All other input values are the rest input values.
+ * The values given to `callback` are the input values,
+ * merged with every non-nullish output value.
+ *
+ * * if `middleware` throws an error,
+ *   returns a promise that is rejected,
+ *   or calls the given `done` function with an error,
+ *   `callback` is called with that error
+ * * if `middleware` returns a value or returns a promise that is resolved,
+ *   that value is the main output value
+ * * if `middleware` calls `done`,
+ *   all non-nullish values except for the first one (the error) overwrite the
+ *   output values
  *
  * @param {Middleware} middleware
+ *   Function to wrap.
  * @param {Callback} callback
+ *   Callback called with the output of `middleware`.
+ * @returns {Run}
+ *   Wrapped middleware.
  */
 function wrap(middleware, callback) {
   /** @type {boolean} */
@@ -709,7 +789,7 @@ function wrap(middleware, callback) {
     }
 
     if (!fnExpectsCallback) {
-      if (result instanceof Promise) {
+      if (result && result.then && typeof result.then === 'function') {
         result.then(then, done);
       } else if (result instanceof Error) {
         done(result);
@@ -721,6 +801,7 @@ function wrap(middleware, callback) {
 
   /**
    * Call `callback`, only once.
+   *
    * @type {Callback}
    */
   function done(error, ...output) {
@@ -751,21 +832,21 @@ function wrap(middleware, callback) {
  * @property {string} type
  * @property {PositionLike | null | undefined} [position]
  *
- * @typedef PositionLike
- * @property {PointLike | null | undefined} [start]
- * @property {PointLike | null | undefined} [end]
- *
  * @typedef PointLike
  * @property {number | null | undefined} [line]
  * @property {number | null | undefined} [column]
  * @property {number | null | undefined} [offset]
+ *
+ * @typedef PositionLike
+ * @property {PointLike | null | undefined} [start]
+ * @property {PointLike | null | undefined} [end]
  */
 
 /**
  * Serialize the positional info of a point, position (start and end points),
  * or node.
  *
- * @param {Node | NodeLike | Position | PositionLike | Point | PointLike | null | undefined} [value]
+ * @param {Node | NodeLike | Point | PointLike | Position | PositionLike | null | undefined} [value]
  *   Node, position, or point.
  * @returns {string}
  *   Pretty printed positional info of a node (`string`).
@@ -827,9 +908,8 @@ function index(value) {
 
 /**
  * @typedef {import('unist').Node} Node
- * @typedef {import('unist').Position} Position
  * @typedef {import('unist').Point} Point
- * @typedef {object & {type: string, position?: Position | undefined}} NodeLike
+ * @typedef {import('unist').Position} Position
  */
 
 
@@ -838,90 +918,229 @@ function index(value) {
  */
 class VFileMessage extends Error {
   /**
-   * Create a message for `reason` at `place` from `origin`.
+   * Create a message for `reason`.
    *
-   * When an error is passed in as `reason`, the `stack` is copied.
+   * > 🪦 **Note**: also has obsolete signatures.
    *
-   * @param {string | Error | VFileMessage} reason
-   *   Reason for message, uses the stack and message of the error if given.
+   * @overload
+   * @param {string} reason
+   * @param {Options | null | undefined} [options]
+   * @returns
    *
-   *   > 👉 **Note**: you should use markdown.
-   * @param {Node | NodeLike | Position | Point | null | undefined} [place]
-   *   Place in file where the message occurred.
+   * @overload
+   * @param {string} reason
+   * @param {Node | NodeLike | null | undefined} parent
+   * @param {string | null | undefined} [origin]
+   * @returns
+   *
+   * @overload
+   * @param {string} reason
+   * @param {Point | Position | null | undefined} place
+   * @param {string | null | undefined} [origin]
+   * @returns
+   *
+   * @overload
+   * @param {string} reason
+   * @param {string | null | undefined} [origin]
+   * @returns
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {Node | NodeLike | null | undefined} parent
+   * @param {string | null | undefined} [origin]
+   * @returns
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {Point | Position | null | undefined} place
+   * @param {string | null | undefined} [origin]
+   * @returns
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {string | null | undefined} [origin]
+   * @returns
+   *
+   * @param {Error | VFileMessage | string} causeOrReason
+   *   Reason for message, should use markdown.
+   * @param {Node | NodeLike | Options | Point | Position | string | null | undefined} [optionsOrParentOrPlace]
+   *   Configuration (optional).
    * @param {string | null | undefined} [origin]
    *   Place in code where the message originates (example:
    *   `'my-package:my-rule'` or `'my-rule'`).
    * @returns
    *   Instance of `VFileMessage`.
    */
-  // To do: next major: expose `undefined` everywhere instead of `null`.
-  constructor(reason, place, origin) {
-    /** @type {[string | null, string | null]} */
-    const parts = [null, null];
-    /** @type {Position} */
-    let position = {
-      // @ts-expect-error: we always follows the structure of `position`.
-      start: {line: null, column: null},
-      // @ts-expect-error: "
-      end: {line: null, column: null}
-    };
-
+  // eslint-disable-next-line complexity
+  constructor(causeOrReason, optionsOrParentOrPlace, origin) {
     super();
 
-    if (typeof place === 'string') {
-      origin = place;
-      place = undefined;
+    if (typeof optionsOrParentOrPlace === 'string') {
+      origin = optionsOrParentOrPlace;
+      optionsOrParentOrPlace = undefined;
     }
 
-    if (typeof origin === 'string') {
+    /** @type {string} */
+    let reason = '';
+    /** @type {Options} */
+    let options = {};
+    let legacyCause = false;
+
+    if (optionsOrParentOrPlace) {
+      // Point.
+      if (
+        'line' in optionsOrParentOrPlace &&
+        'column' in optionsOrParentOrPlace
+      ) {
+        options = {place: optionsOrParentOrPlace};
+      }
+      // Position.
+      else if (
+        'start' in optionsOrParentOrPlace &&
+        'end' in optionsOrParentOrPlace
+      ) {
+        options = {place: optionsOrParentOrPlace};
+      }
+      // Node.
+      else if ('type' in optionsOrParentOrPlace) {
+        options = {
+          ancestors: [optionsOrParentOrPlace],
+          place: optionsOrParentOrPlace.position
+        };
+      }
+      // Options.
+      else {
+        options = {...optionsOrParentOrPlace};
+      }
+    }
+
+    if (typeof causeOrReason === 'string') {
+      reason = causeOrReason;
+    }
+    // Error.
+    else if (!options.cause && causeOrReason) {
+      legacyCause = true;
+      reason = causeOrReason.message;
+      options.cause = causeOrReason;
+    }
+
+    if (!options.ruleId && !options.source && typeof origin === 'string') {
       const index = origin.indexOf(':');
 
       if (index === -1) {
-        parts[1] = origin;
+        options.ruleId = origin;
       } else {
-        parts[0] = origin.slice(0, index);
-        parts[1] = origin.slice(index + 1);
+        options.source = origin.slice(0, index);
+        options.ruleId = origin.slice(index + 1);
       }
     }
 
-    if (place) {
-      // Node.
-      if ('type' in place || 'position' in place) {
-        if (place.position) {
-          // To do: next major: deep clone.
-          // @ts-expect-error: looks like a position.
-          position = place.position;
-        }
-      }
-      // Position.
-      else if ('start' in place || 'end' in place) {
-        // @ts-expect-error: looks like a position.
-        // To do: next major: deep clone.
-        position = place;
-      }
-      // Point.
-      else if ('line' in place || 'column' in place) {
-        // To do: next major: deep clone.
-        position.start = place;
+    if (!options.place && options.ancestors && options.ancestors) {
+      const parent = options.ancestors[options.ancestors.length - 1];
+
+      if (parent) {
+        options.place = parent.position;
       }
     }
 
-    // Fields from `Error`.
+    const start =
+      options.place && 'start' in options.place
+        ? options.place.start
+        : options.place;
+
+    /* eslint-disable no-unused-expressions */
     /**
-     * Serialized positional info of error.
+     * Stack of ancestor nodes surrounding the message.
      *
-     * On normal errors, this would be something like `ParseError`, buit in
-     * `VFile` messages we use this space to show where an error happened.
+     * @type {Array<Node> | undefined}
      */
-    this.name = stringifyPosition(place) || '1:1';
+    this.ancestors = options.ancestors || undefined;
 
+    /**
+     * Original error cause of the message.
+     *
+     * @type {Error | undefined}
+     */
+    this.cause = options.cause || undefined;
+
+    /**
+     * Starting column of message.
+     *
+     * @type {number | undefined}
+     */
+    this.column = start ? start.column : undefined;
+
+    /**
+     * State of problem.
+     *
+     * * `true` — error, file not usable
+     * * `false` — warning, change may be needed
+     * * `undefined` — change likely not needed
+     *
+     * @type {boolean | null | undefined}
+     */
+    this.fatal = undefined;
+
+    /**
+     * Path of a file (used throughout the `VFile` ecosystem).
+     *
+     * @type {string | undefined}
+     */
+    this.file;
+
+    // Field from `Error`.
     /**
      * Reason for message.
      *
      * @type {string}
      */
-    this.message = typeof reason === 'object' ? reason.message : reason;
+    this.message = reason;
 
+    /**
+     * Starting line of error.
+     *
+     * @type {number | undefined}
+     */
+    this.line = start ? start.line : undefined;
+
+    // Field from `Error`.
+    /**
+     * Serialized positional info of message.
+     *
+     * On normal errors, this would be something like `ParseError`, buit in
+     * `VFile` messages we use this space to show where an error happened.
+     */
+    this.name = stringifyPosition(options.place) || '1:1';
+
+    /**
+     * Place of message.
+     *
+     * @type {Point | Position | undefined}
+     */
+    this.place = options.place || undefined;
+
+    /**
+     * Reason for message, should use markdown.
+     *
+     * @type {string}
+     */
+    this.reason = this.message;
+
+    /**
+     * Category of message (example: `'my-rule'`).
+     *
+     * @type {string | undefined}
+     */
+    this.ruleId = options.ruleId || undefined;
+
+    /**
+     * Namespace of message (example: `'my-package'`).
+     *
+     * @type {string | undefined}
+     */
+    this.source = options.source || undefined;
+
+    // Field from `Error`.
     /**
      * Stack of message.
      *
@@ -930,74 +1149,10 @@ class VFileMessage extends Error {
      *
      * @type {string}
      */
-    this.stack = '';
-
-    if (typeof reason === 'object' && reason.stack) {
-      this.stack = reason.stack;
-    }
-
-    /**
-     * Reason for message.
-     *
-     * > 👉 **Note**: you should use markdown.
-     *
-     * @type {string}
-     */
-    this.reason = this.message;
-
-    /* eslint-disable no-unused-expressions */
-    /**
-     * State of problem.
-     *
-     * * `true` — marks associated file as no longer processable (error)
-     * * `false` — necessitates a (potential) change (warning)
-     * * `null | undefined` — for things that might not need changing (info)
-     *
-     * @type {boolean | null | undefined}
-     */
-    this.fatal;
-
-    /**
-     * Starting line of error.
-     *
-     * @type {number | null}
-     */
-    this.line = position.start.line;
-
-    /**
-     * Starting column of error.
-     *
-     * @type {number | null}
-     */
-    this.column = position.start.column;
-
-    /**
-     * Full unist position.
-     *
-     * @type {Position | null}
-     */
-    this.position = position;
-
-    /**
-     * Namespace of message (example: `'my-package'`).
-     *
-     * @type {string | null}
-     */
-    this.source = parts[0];
-
-    /**
-     * Category of message (example: `'my-rule'`).
-     *
-     * @type {string | null}
-     */
-    this.ruleId = parts[1];
-
-    /**
-     * Path of a file (used throughout the `VFile` ecosystem).
-     *
-     * @type {string | null}
-     */
-    this.file;
+    this.stack =
+      legacyCause && options.cause && typeof options.cause.stack === 'string'
+        ? options.cause.stack
+        : '';
 
     // The following fields are “well known”.
     // Not standard.
@@ -1007,16 +1162,23 @@ class VFileMessage extends Error {
      * Specify the source value that’s being reported, which is deemed
      * incorrect.
      *
-     * @type {string | null}
+     * @type {string | undefined}
      */
     this.actual;
 
     /**
      * Suggest acceptable values that can be used instead of `actual`.
      *
-     * @type {Array<string> | null}
+     * @type {Array<string> | undefined}
      */
     this.expected;
+
+    /**
+     * Long form description of the message (you should use markdown).
+     *
+     * @type {string | undefined}
+     */
+    this.note;
 
     /**
      * Link to docs for the message.
@@ -1024,16 +1186,9 @@ class VFileMessage extends Error {
      * > 👉 **Note**: this must be an absolute URL that can be passed as `x`
      * > to `new URL(x)`.
      *
-     * @type {string | null}
+     * @type {string | undefined}
      */
     this.url;
-
-    /**
-     * Long form description of the message (you should use markdown).
-     *
-     * @type {string | null}
-     */
-    this.note;
     /* eslint-enable no-unused-expressions */
   }
 }
@@ -1043,58 +1198,558 @@ VFileMessage.prototype.name = '';
 VFileMessage.prototype.reason = '';
 VFileMessage.prototype.message = '';
 VFileMessage.prototype.stack = '';
-VFileMessage.prototype.fatal = null;
-VFileMessage.prototype.column = null;
-VFileMessage.prototype.line = null;
-VFileMessage.prototype.source = null;
-VFileMessage.prototype.ruleId = null;
-VFileMessage.prototype.position = null;
+VFileMessage.prototype.column = undefined;
+VFileMessage.prototype.line = undefined;
+VFileMessage.prototype.ancestors = undefined;
+VFileMessage.prototype.cause = undefined;
+VFileMessage.prototype.fatal = undefined;
+VFileMessage.prototype.place = undefined;
+VFileMessage.prototype.ruleId = undefined;
+VFileMessage.prototype.source = undefined;
+
+// A derivative work based on:
+// <https://github.com/browserify/path-browserify>.
+// Which is licensed:
+//
+// MIT License
+//
+// Copyright (c) 2013 James Halliday
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// A derivative work based on:
+//
+// Parts of that are extracted from Node’s internal `path` module:
+// <https://github.com/nodejs/node/blob/master/lib/path.js>.
+// Which is licensed:
+//
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+const minpath = {basename, dirname, extname, join: join$1, sep: '/'};
+
+/* eslint-disable max-depth, complexity */
 
 /**
- * @typedef URL
- * @property {string} hash
- * @property {string} host
- * @property {string} hostname
- * @property {string} href
- * @property {string} origin
- * @property {string} password
- * @property {string} pathname
- * @property {string} port
- * @property {string} protocol
- * @property {string} search
- * @property {any} searchParams
- * @property {string} username
- * @property {() => string} toString
- * @property {() => string} toJSON
+ * Get the basename from a path.
+ *
+ * @param {string} path
+ *   File path.
+ * @param {string | null | undefined} [extname]
+ *   Extension to strip.
+ * @returns {string}
+ *   Stem or basename.
  */
+function basename(path, extname) {
+  if (extname !== undefined && typeof extname !== 'string') {
+    throw new TypeError('"ext" argument must be a string')
+  }
+
+  assertPath$1(path);
+  let start = 0;
+  let end = -1;
+  let index = path.length;
+  /** @type {boolean | undefined} */
+  let seenNonSlash;
+
+  if (
+    extname === undefined ||
+    extname.length === 0 ||
+    extname.length > path.length
+  ) {
+    while (index--) {
+      if (path.codePointAt(index) === 47 /* `/` */) {
+        // If we reached a path separator that was not part of a set of path
+        // separators at the end of the string, stop now.
+        if (seenNonSlash) {
+          start = index + 1;
+          break
+        }
+      } else if (end < 0) {
+        // We saw the first non-path separator, mark this as the end of our
+        // path component.
+        seenNonSlash = true;
+        end = index + 1;
+      }
+    }
+
+    return end < 0 ? '' : path.slice(start, end)
+  }
+
+  if (extname === path) {
+    return ''
+  }
+
+  let firstNonSlashEnd = -1;
+  let extnameIndex = extname.length - 1;
+
+  while (index--) {
+    if (path.codePointAt(index) === 47 /* `/` */) {
+      // If we reached a path separator that was not part of a set of path
+      // separators at the end of the string, stop now.
+      if (seenNonSlash) {
+        start = index + 1;
+        break
+      }
+    } else {
+      if (firstNonSlashEnd < 0) {
+        // We saw the first non-path separator, remember this index in case
+        // we need it if the extension ends up not matching.
+        seenNonSlash = true;
+        firstNonSlashEnd = index + 1;
+      }
+
+      if (extnameIndex > -1) {
+        // Try to match the explicit extension.
+        if (path.codePointAt(index) === extname.codePointAt(extnameIndex--)) {
+          if (extnameIndex < 0) {
+            // We matched the extension, so mark this as the end of our path
+            // component
+            end = index;
+          }
+        } else {
+          // Extension does not match, so our result is the entire path
+          // component
+          extnameIndex = -1;
+          end = firstNonSlashEnd;
+        }
+      }
+    }
+  }
+
+  if (start === end) {
+    end = firstNonSlashEnd;
+  } else if (end < 0) {
+    end = path.length;
+  }
+
+  return path.slice(start, end)
+}
 
 /**
- * Check if `fileUrlOrPath` looks like a URL.
+ * Get the dirname from a path.
+ *
+ * @param {string} path
+ *   File path.
+ * @returns {string}
+ *   File path.
+ */
+function dirname(path) {
+  assertPath$1(path);
+
+  if (path.length === 0) {
+    return '.'
+  }
+
+  let end = -1;
+  let index = path.length;
+  /** @type {boolean | undefined} */
+  let unmatchedSlash;
+
+  // Prefix `--` is important to not run on `0`.
+  while (--index) {
+    if (path.codePointAt(index) === 47 /* `/` */) {
+      if (unmatchedSlash) {
+        end = index;
+        break
+      }
+    } else if (!unmatchedSlash) {
+      // We saw the first non-path separator
+      unmatchedSlash = true;
+    }
+  }
+
+  return end < 0
+    ? path.codePointAt(0) === 47 /* `/` */
+      ? '/'
+      : '.'
+    : end === 1 && path.codePointAt(0) === 47 /* `/` */
+      ? '//'
+      : path.slice(0, end)
+}
+
+/**
+ * Get an extname from a path.
+ *
+ * @param {string} path
+ *   File path.
+ * @returns {string}
+ *   Extname.
+ */
+function extname(path) {
+  assertPath$1(path);
+
+  let index = path.length;
+
+  let end = -1;
+  let startPart = 0;
+  let startDot = -1;
+  // Track the state of characters (if any) we see before our first dot and
+  // after any path separator we find.
+  let preDotState = 0;
+  /** @type {boolean | undefined} */
+  let unmatchedSlash;
+
+  while (index--) {
+    const code = path.codePointAt(index);
+
+    if (code === 47 /* `/` */) {
+      // If we reached a path separator that was not part of a set of path
+      // separators at the end of the string, stop now.
+      if (unmatchedSlash) {
+        startPart = index + 1;
+        break
+      }
+
+      continue
+    }
+
+    if (end < 0) {
+      // We saw the first non-path separator, mark this as the end of our
+      // extension.
+      unmatchedSlash = true;
+      end = index + 1;
+    }
+
+    if (code === 46 /* `.` */) {
+      // If this is our first dot, mark it as the start of our extension.
+      if (startDot < 0) {
+        startDot = index;
+      } else if (preDotState !== 1) {
+        preDotState = 1;
+      }
+    } else if (startDot > -1) {
+      // We saw a non-dot and non-path separator before our dot, so we should
+      // have a good chance at having a non-empty extension.
+      preDotState = -1;
+    }
+  }
+
+  if (
+    startDot < 0 ||
+    end < 0 ||
+    // We saw a non-dot character immediately before the dot.
+    preDotState === 0 ||
+    // The (right-most) trimmed path component is exactly `..`.
+    (preDotState === 1 && startDot === end - 1 && startDot === startPart + 1)
+  ) {
+    return ''
+  }
+
+  return path.slice(startDot, end)
+}
+
+/**
+ * Join segments from a path.
+ *
+ * @param {Array<string>} segments
+ *   Path segments.
+ * @returns {string}
+ *   File path.
+ */
+function join$1(...segments) {
+  let index = -1;
+  /** @type {string | undefined} */
+  let joined;
+
+  while (++index < segments.length) {
+    assertPath$1(segments[index]);
+
+    if (segments[index]) {
+      joined =
+        joined === undefined ? segments[index] : joined + '/' + segments[index];
+    }
+  }
+
+  return joined === undefined ? '.' : normalize(joined)
+}
+
+/**
+ * Normalize a basic file path.
+ *
+ * @param {string} path
+ *   File path.
+ * @returns {string}
+ *   File path.
+ */
+// Note: `normalize` is not exposed as `path.normalize`, so some code is
+// manually removed from it.
+function normalize(path) {
+  assertPath$1(path);
+
+  const absolute = path.codePointAt(0) === 47; /* `/` */
+
+  // Normalize the path according to POSIX rules.
+  let value = normalizeString(path, !absolute);
+
+  if (value.length === 0 && !absolute) {
+    value = '.';
+  }
+
+  if (value.length > 0 && path.codePointAt(path.length - 1) === 47 /* / */) {
+    value += '/';
+  }
+
+  return absolute ? '/' + value : value
+}
+
+/**
+ * Resolve `.` and `..` elements in a path with directory names.
+ *
+ * @param {string} path
+ *   File path.
+ * @param {boolean} allowAboveRoot
+ *   Whether `..` can move above root.
+ * @returns {string}
+ *   File path.
+ */
+function normalizeString(path, allowAboveRoot) {
+  let result = '';
+  let lastSegmentLength = 0;
+  let lastSlash = -1;
+  let dots = 0;
+  let index = -1;
+  /** @type {number | undefined} */
+  let code;
+  /** @type {number} */
+  let lastSlashIndex;
+
+  while (++index <= path.length) {
+    if (index < path.length) {
+      code = path.codePointAt(index);
+    } else if (code === 47 /* `/` */) {
+      break
+    } else {
+      code = 47; /* `/` */
+    }
+
+    if (code === 47 /* `/` */) {
+      if (lastSlash === index - 1 || dots === 1) ; else if (lastSlash !== index - 1 && dots === 2) {
+        if (
+          result.length < 2 ||
+          lastSegmentLength !== 2 ||
+          result.codePointAt(result.length - 1) !== 46 /* `.` */ ||
+          result.codePointAt(result.length - 2) !== 46 /* `.` */
+        ) {
+          if (result.length > 2) {
+            lastSlashIndex = result.lastIndexOf('/');
+
+            if (lastSlashIndex !== result.length - 1) {
+              if (lastSlashIndex < 0) {
+                result = '';
+                lastSegmentLength = 0;
+              } else {
+                result = result.slice(0, lastSlashIndex);
+                lastSegmentLength = result.length - 1 - result.lastIndexOf('/');
+              }
+
+              lastSlash = index;
+              dots = 0;
+              continue
+            }
+          } else if (result.length > 0) {
+            result = '';
+            lastSegmentLength = 0;
+            lastSlash = index;
+            dots = 0;
+            continue
+          }
+        }
+
+        if (allowAboveRoot) {
+          result = result.length > 0 ? result + '/..' : '..';
+          lastSegmentLength = 2;
+        }
+      } else {
+        if (result.length > 0) {
+          result += '/' + path.slice(lastSlash + 1, index);
+        } else {
+          result = path.slice(lastSlash + 1, index);
+        }
+
+        lastSegmentLength = index - lastSlash - 1;
+      }
+
+      lastSlash = index;
+      dots = 0;
+    } else if (code === 46 /* `.` */ && dots > -1) {
+      dots++;
+    } else {
+      dots = -1;
+    }
+  }
+
+  return result
+}
+
+/**
+ * Make sure `path` is a string.
+ *
+ * @param {string} path
+ *   File path.
+ * @returns {asserts path is string}
+ *   Nothing.
+ */
+function assertPath$1(path) {
+  if (typeof path !== 'string') {
+    throw new TypeError(
+      'Path must be a string. Received ' + JSON.stringify(path)
+    )
+  }
+}
+
+/* eslint-enable max-depth, complexity */
+
+// Somewhat based on:
+// <https://github.com/defunctzombie/node-process/blob/master/browser.js>.
+// But I don’t think one tiny line of code can be copyrighted. 😅
+const minproc = {cwd};
+
+function cwd() {
+  return '/'
+}
+
+/**
+ * Checks if a value has the shape of a WHATWG URL object.
+ *
+ * Using a symbol or instanceof would not be able to recognize URL objects
+ * coming from other implementations (e.g. in Electron), so instead we are
+ * checking some well known properties for a lack of a better test.
+ *
+ * We use `href` and `protocol` as they are the only properties that are
+ * easy to retrieve and calculate due to the lazy nature of the getters.
+ *
+ * We check for auth attribute to distinguish legacy url instance with
+ * WHATWG URL instance.
  *
  * @param {unknown} fileUrlOrPath
  *   File path or URL.
  * @returns {fileUrlOrPath is URL}
  *   Whether it’s a URL.
  */
-// From: <https://github.com/nodejs/node/blob/fcf8ba4/lib/internal/url.js#L1501>
+// From: <https://github.com/nodejs/node/blob/6a3403c/lib/internal/url.js#L720>
 function isUrl(fileUrlOrPath) {
-  return (
+  return Boolean(
     fileUrlOrPath !== null &&
-    typeof fileUrlOrPath === 'object' &&
-    // @ts-expect-error: indexable.
-    fileUrlOrPath.href &&
-    // @ts-expect-error: indexable.
-    fileUrlOrPath.origin
+      typeof fileUrlOrPath === 'object' &&
+      'href' in fileUrlOrPath &&
+      fileUrlOrPath.href &&
+      'protocol' in fileUrlOrPath &&
+      fileUrlOrPath.protocol &&
+      // @ts-expect-error: indexing is fine.
+      fileUrlOrPath.auth === undefined
   )
 }
 
+// See: <https://github.com/nodejs/node/blob/6a3403c/lib/internal/url.js>
+
 /**
- * @typedef {import('unist').Node} Node
- * @typedef {import('unist').Position} Position
- * @typedef {import('unist').Point} Point
- * @typedef {import('./minurl.shared.js').URL} URL
- * @typedef {import('../index.js').Data} Data
- * @typedef {import('../index.js').Value} Value
+ * @param {URL | string} path
+ *   File URL.
+ * @returns {string}
+ *   File URL.
+ */
+function urlToPath(path) {
+  if (typeof path === 'string') {
+    path = new URL(path);
+  } else if (!isUrl(path)) {
+    /** @type {NodeJS.ErrnoException} */
+    const error = new TypeError(
+      'The "path" argument must be of type string or an instance of URL. Received `' +
+        path +
+        '`'
+    );
+    error.code = 'ERR_INVALID_ARG_TYPE';
+    throw error
+  }
+
+  if (path.protocol !== 'file:') {
+    /** @type {NodeJS.ErrnoException} */
+    const error = new TypeError('The URL must be of scheme file');
+    error.code = 'ERR_INVALID_URL_SCHEME';
+    throw error
+  }
+
+  return getPathFromURLPosix(path)
+}
+
+/**
+ * Get a path from a POSIX URL.
+ *
+ * @param {URL} url
+ *   URL.
+ * @returns {string}
+ *   File path.
+ */
+function getPathFromURLPosix(url) {
+  if (url.hostname !== '') {
+    /** @type {NodeJS.ErrnoException} */
+    const error = new TypeError(
+      'File URL host must be "localhost" or empty on darwin'
+    );
+    error.code = 'ERR_INVALID_FILE_URL_HOST';
+    throw error
+  }
+
+  const pathname = url.pathname;
+  let index = -1;
+
+  while (++index < pathname.length) {
+    if (
+      pathname.codePointAt(index) === 37 /* `%` */ &&
+      pathname.codePointAt(index + 1) === 50 /* `2` */
+    ) {
+      const third = pathname.codePointAt(index + 2);
+      if (third === 70 /* `F` */ || third === 102 /* `f` */) {
+        /** @type {NodeJS.ErrnoException} */
+        const error = new TypeError(
+          'File URL path must not include encoded / characters'
+        );
+        error.code = 'ERR_INVALID_FILE_URL_PATH';
+        throw error
+      }
+    }
+  }
+
+  return decodeURIComponent(pathname)
+}
+
+/**
+ * @import {Node, Point, Position} from 'unist'
+ * @import {Options as MessageOptions} from 'vfile-message'
+ * @import {Compatible, Data, Map, Options, Value} from 'vfile'
  */
 
 
@@ -1102,10 +1757,15 @@ function isUrl(fileUrlOrPath) {
  * Order of setting (least specific to most), we need this because otherwise
  * `{stem: 'a', path: '~/b.js'}` would throw, as a path is needed before a
  * stem can be set.
- *
- * @type {Array<'basename' | 'dirname' | 'extname' | 'history' | 'path' | 'stem'>}
  */
-const order = ['history', 'path', 'basename', 'stem', 'extname', 'dirname'];
+const order = /** @type {const} */ ([
+  'history',
+  'path',
+  'basename',
+  'stem',
+  'extname',
+  'dirname'
+]);
 
 class VFile {
   /**
@@ -1113,7 +1773,7 @@ class VFile {
    *
    * `options` is treated as:
    *
-   * *   `string` or `Buffer` — `{value: options}`
+   * *   `string` or `Uint8Array` — `{value: options}`
    * *   `URL` — `{path: options}`
    * *   `VFile` — shallow copies its data over to the new file
    * *   `object` — all fields are shallow copied over to the new file
@@ -1136,16 +1796,27 @@ class VFile {
 
     if (!value) {
       options = {};
-    } else if (typeof value === 'string' || buffer(value)) {
-      options = {value};
     } else if (isUrl(value)) {
       options = {path: value};
+    } else if (typeof value === 'string' || isUint8Array$1(value)) {
+      options = {value};
     } else {
       options = value;
     }
 
+    /* eslint-disable no-unused-expressions */
+
     /**
-     * Place to store custom information (default: `{}`).
+     * Base of `path` (default: `process.cwd()` or `'/'` in browsers).
+     *
+     * @type {string}
+     */
+    // Prevent calling `cwd` (which could be expensive) if it’s not needed;
+    // the empty string will be overridden in the next block.
+    this.cwd = 'cwd' in options ? '' : minproc.cwd();
+
+    /**
+     * Place to store custom info (default: `{}`).
      *
      * It’s OK to store custom data directly on the file but moving it to
      * `data` is recommended.
@@ -1155,14 +1826,7 @@ class VFile {
     this.data = {};
 
     /**
-     * List of messages associated with the file.
-     *
-     * @type {Array<VFileMessage>}
-     */
-    this.messages = [];
-
-    /**
-     * List of filepaths the file moved between.
+     * List of file paths the file moved between.
      *
      * The first is the original path and the last is the current path.
      *
@@ -1171,13 +1835,12 @@ class VFile {
     this.history = [];
 
     /**
-     * Base of `path` (default: `process.cwd()` or `'/'` in browsers).
+     * List of messages associated with the file.
      *
-     * @type {string}
+     * @type {Array<VFileMessage>}
      */
-    this.cwd = proc.cwd();
+    this.messages = [];
 
-    /* eslint-disable no-unused-expressions */
     /**
      * Raw value.
      *
@@ -1187,15 +1850,15 @@ class VFile {
 
     // The below are non-standard, they are “well-known”.
     // As in, used in several tools.
-
     /**
-     * Whether a file was saved to disk.
+     * Source map.
      *
-     * This is used by vfile reporters.
+     * This type is equivalent to the `RawSourceMap` type from the `source-map`
+     * module.
      *
-     * @type {boolean}
+     * @type {Map | null | undefined}
      */
-    this.stored;
+    this.map;
 
     /**
      * Custom, non-string, compiled, representation.
@@ -1208,51 +1871,149 @@ class VFile {
     this.result;
 
     /**
-     * Source map.
+     * Whether a file was saved to disk.
      *
-     * This type is equivalent to the `RawSourceMap` type from the `source-map`
-     * module.
+     * This is used by vfile reporters.
      *
-     * @type {Map | null | undefined}
+     * @type {boolean}
      */
-    this.map;
+    this.stored;
     /* eslint-enable no-unused-expressions */
 
     // Set path related properties in the correct order.
     let index = -1;
 
     while (++index < order.length) {
-      const prop = order[index];
+      const field = order[index];
 
       // Note: we specifically use `in` instead of `hasOwnProperty` to accept
       // `vfile`s too.
       if (
-        prop in options &&
-        options[prop] !== undefined &&
-        options[prop] !== null
+        field in options &&
+        options[field] !== undefined &&
+        options[field] !== null
       ) {
         // @ts-expect-error: TS doesn’t understand basic reality.
-        this[prop] = prop === 'history' ? [...options[prop]] : options[prop];
+        this[field] = field === 'history' ? [...options[field]] : options[field];
       }
     }
 
     /** @type {string} */
-    let prop;
+    let field;
 
     // Set non-path related properties.
-    for (prop in options) {
+    for (field in options) {
       // @ts-expect-error: fine to set other things.
-      if (!order.includes(prop)) {
+      if (!order.includes(field)) {
         // @ts-expect-error: fine to set other things.
-        this[prop] = options[prop];
+        this[field] = options[field];
       }
     }
+  }
+
+  /**
+   * Get the basename (including extname) (example: `'index.min.js'`).
+   *
+   * @returns {string | undefined}
+   *   Basename.
+   */
+  get basename() {
+    return typeof this.path === 'string'
+      ? minpath.basename(this.path)
+      : undefined
+  }
+
+  /**
+   * Set basename (including extname) (`'index.min.js'`).
+   *
+   * Cannot contain path separators (`'/'` on unix, macOS, and browsers, `'\'`
+   * on windows).
+   * Cannot be nullified (use `file.path = file.dirname` instead).
+   *
+   * @param {string} basename
+   *   Basename.
+   * @returns {undefined}
+   *   Nothing.
+   */
+  set basename(basename) {
+    assertNonEmpty(basename, 'basename');
+    assertPart(basename, 'basename');
+    this.path = minpath.join(this.dirname || '', basename);
+  }
+
+  /**
+   * Get the parent path (example: `'~'`).
+   *
+   * @returns {string | undefined}
+   *   Dirname.
+   */
+  get dirname() {
+    return typeof this.path === 'string'
+      ? minpath.dirname(this.path)
+      : undefined
+  }
+
+  /**
+   * Set the parent path (example: `'~'`).
+   *
+   * Cannot be set if there’s no `path` yet.
+   *
+   * @param {string | undefined} dirname
+   *   Dirname.
+   * @returns {undefined}
+   *   Nothing.
+   */
+  set dirname(dirname) {
+    assertPath(this.basename, 'dirname');
+    this.path = minpath.join(dirname || '', this.basename);
+  }
+
+  /**
+   * Get the extname (including dot) (example: `'.js'`).
+   *
+   * @returns {string | undefined}
+   *   Extname.
+   */
+  get extname() {
+    return typeof this.path === 'string'
+      ? minpath.extname(this.path)
+      : undefined
+  }
+
+  /**
+   * Set the extname (including dot) (example: `'.js'`).
+   *
+   * Cannot contain path separators (`'/'` on unix, macOS, and browsers, `'\'`
+   * on windows).
+   * Cannot be set if there’s no `path` yet.
+   *
+   * @param {string | undefined} extname
+   *   Extname.
+   * @returns {undefined}
+   *   Nothing.
+   */
+  set extname(extname) {
+    assertPart(extname, 'extname');
+    assertPath(this.dirname, 'extname');
+
+    if (extname) {
+      if (extname.codePointAt(0) !== 46 /* `.` */) {
+        throw new Error('`extname` must start with `.`')
+      }
+
+      if (extname.includes('.', 1)) {
+        throw new Error('`extname` cannot contain multiple dots')
+      }
+    }
+
+    this.path = minpath.join(this.dirname, this.stem + (extname || ''));
   }
 
   /**
    * Get the full path (example: `'~/index.min.js'`).
    *
    * @returns {string}
+   *   Path.
    */
   get path() {
     return this.history[this.history.length - 1]
@@ -1265,11 +2026,14 @@ class VFile {
    * You can set a file URL (a `URL` object with a `file:` protocol) which will
    * be turned into a path with `url.fileURLToPath`.
    *
-   * @param {string | URL} path
+   * @param {URL | string} path
+   *   Path.
+   * @returns {undefined}
+   *   Nothing.
    */
   set path(path) {
     if (isUrl(path)) {
-      path = url.fileURLToPath(path);
+      path = urlToPath(path);
     }
 
     assertNonEmpty(path, 'path');
@@ -1280,79 +2044,14 @@ class VFile {
   }
 
   /**
-   * Get the parent path (example: `'~'`).
-   */
-  get dirname() {
-    return typeof this.path === 'string' ? path$1.dirname(this.path) : undefined
-  }
-
-  /**
-   * Set the parent path (example: `'~'`).
-   *
-   * Cannot be set if there’s no `path` yet.
-   */
-  set dirname(dirname) {
-    assertPath(this.basename, 'dirname');
-    this.path = path$1.join(dirname || '', this.basename);
-  }
-
-  /**
-   * Get the basename (including extname) (example: `'index.min.js'`).
-   */
-  get basename() {
-    return typeof this.path === 'string' ? path$1.basename(this.path) : undefined
-  }
-
-  /**
-   * Set basename (including extname) (`'index.min.js'`).
-   *
-   * Cannot contain path separators (`'/'` on unix, macOS, and browsers, `'\'`
-   * on windows).
-   * Cannot be nullified (use `file.path = file.dirname` instead).
-   */
-  set basename(basename) {
-    assertNonEmpty(basename, 'basename');
-    assertPart(basename, 'basename');
-    this.path = path$1.join(this.dirname || '', basename);
-  }
-
-  /**
-   * Get the extname (including dot) (example: `'.js'`).
-   */
-  get extname() {
-    return typeof this.path === 'string' ? path$1.extname(this.path) : undefined
-  }
-
-  /**
-   * Set the extname (including dot) (example: `'.js'`).
-   *
-   * Cannot contain path separators (`'/'` on unix, macOS, and browsers, `'\'`
-   * on windows).
-   * Cannot be set if there’s no `path` yet.
-   */
-  set extname(extname) {
-    assertPart(extname, 'extname');
-    assertPath(this.dirname, 'extname');
-
-    if (extname) {
-      if (extname.charCodeAt(0) !== 46 /* `.` */) {
-        throw new Error('`extname` must start with `.`')
-      }
-
-      if (extname.includes('.', 1)) {
-        throw new Error('`extname` cannot contain multiple dots')
-      }
-    }
-
-    this.path = path$1.join(this.dirname, this.stem + (extname || ''));
-  }
-
-  /**
    * Get the stem (basename w/o extname) (example: `'index.min'`).
+   *
+   * @returns {string | undefined}
+   *   Stem.
    */
   get stem() {
     return typeof this.path === 'string'
-      ? path$1.basename(this.path, this.extname)
+      ? minpath.basename(this.path, this.extname)
       : undefined
   }
 
@@ -1362,44 +2061,220 @@ class VFile {
    * Cannot contain path separators (`'/'` on unix, macOS, and browsers, `'\'`
    * on windows).
    * Cannot be nullified (use `file.path = file.dirname` instead).
+   *
+   * @param {string} stem
+   *   Stem.
+   * @returns {undefined}
+   *   Nothing.
    */
   set stem(stem) {
     assertNonEmpty(stem, 'stem');
     assertPart(stem, 'stem');
-    this.path = path$1.join(this.dirname || '', stem + (this.extname || ''));
+    this.path = minpath.join(this.dirname || '', stem + (this.extname || ''));
   }
 
+  // Normal prototypal methods.
   /**
-   * Serialize the file.
+   * Create a fatal message for `reason` associated with the file.
    *
-   * @param {BufferEncoding | null | undefined} [encoding='utf8']
-   *   Character encoding to understand `value` as when it’s a `Buffer`
-   *   (default: `'utf8'`).
-   * @returns {string}
-   *   Serialized file.
+   * The `fatal` field of the message is set to `true` (error; file not usable)
+   * and the `file` field is set to the current file path.
+   * The message is added to the `messages` field on `file`.
+   *
+   * > 🪦 **Note**: also has obsolete signatures.
+   *
+   * @overload
+   * @param {string} reason
+   * @param {MessageOptions | null | undefined} [options]
+   * @returns {never}
+   *
+   * @overload
+   * @param {string} reason
+   * @param {Node | NodeLike | null | undefined} parent
+   * @param {string | null | undefined} [origin]
+   * @returns {never}
+   *
+   * @overload
+   * @param {string} reason
+   * @param {Point | Position | null | undefined} place
+   * @param {string | null | undefined} [origin]
+   * @returns {never}
+   *
+   * @overload
+   * @param {string} reason
+   * @param {string | null | undefined} [origin]
+   * @returns {never}
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {Node | NodeLike | null | undefined} parent
+   * @param {string | null | undefined} [origin]
+   * @returns {never}
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {Point | Position | null | undefined} place
+   * @param {string | null | undefined} [origin]
+   * @returns {never}
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {string | null | undefined} [origin]
+   * @returns {never}
+   *
+   * @param {Error | VFileMessage | string} causeOrReason
+   *   Reason for message, should use markdown.
+   * @param {Node | NodeLike | MessageOptions | Point | Position | string | null | undefined} [optionsOrParentOrPlace]
+   *   Configuration (optional).
+   * @param {string | null | undefined} [origin]
+   *   Place in code where the message originates (example:
+   *   `'my-package:my-rule'` or `'my-rule'`).
+   * @returns {never}
+   *   Never.
+   * @throws {VFileMessage}
+   *   Message.
    */
-  toString(encoding) {
-    return (this.value || '').toString(encoding || undefined)
+  fail(causeOrReason, optionsOrParentOrPlace, origin) {
+    // @ts-expect-error: the overloads are fine.
+    const message = this.message(causeOrReason, optionsOrParentOrPlace, origin);
+
+    message.fatal = true;
+
+    throw message
   }
 
   /**
-   * Create a warning message associated with the file.
+   * Create an info message for `reason` associated with the file.
    *
-   * Its `fatal` is set to `false` and `file` is set to the current file path.
-   * Its added to `file.messages`.
+   * The `fatal` field of the message is set to `undefined` (info; change
+   * likely not needed) and the `file` field is set to the current file path.
+   * The message is added to the `messages` field on `file`.
    *
-   * @param {string | Error | VFileMessage} reason
-   *   Reason for message, uses the stack and message of the error if given.
-   * @param {Node | NodeLike | Position | Point | null | undefined} [place]
-   *   Place in file where the message occurred.
+   * > 🪦 **Note**: also has obsolete signatures.
+   *
+   * @overload
+   * @param {string} reason
+   * @param {MessageOptions | null | undefined} [options]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {string} reason
+   * @param {Node | NodeLike | null | undefined} parent
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {string} reason
+   * @param {Point | Position | null | undefined} place
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {string} reason
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {Node | NodeLike | null | undefined} parent
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {Point | Position | null | undefined} place
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @param {Error | VFileMessage | string} causeOrReason
+   *   Reason for message, should use markdown.
+   * @param {Node | NodeLike | MessageOptions | Point | Position | string | null | undefined} [optionsOrParentOrPlace]
+   *   Configuration (optional).
    * @param {string | null | undefined} [origin]
    *   Place in code where the message originates (example:
    *   `'my-package:my-rule'` or `'my-rule'`).
    * @returns {VFileMessage}
    *   Message.
    */
-  message(reason, place, origin) {
-    const message = new VFileMessage(reason, place, origin);
+  info(causeOrReason, optionsOrParentOrPlace, origin) {
+    // @ts-expect-error: the overloads are fine.
+    const message = this.message(causeOrReason, optionsOrParentOrPlace, origin);
+
+    message.fatal = undefined;
+
+    return message
+  }
+
+  /**
+   * Create a message for `reason` associated with the file.
+   *
+   * The `fatal` field of the message is set to `false` (warning; change may be
+   * needed) and the `file` field is set to the current file path.
+   * The message is added to the `messages` field on `file`.
+   *
+   * > 🪦 **Note**: also has obsolete signatures.
+   *
+   * @overload
+   * @param {string} reason
+   * @param {MessageOptions | null | undefined} [options]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {string} reason
+   * @param {Node | NodeLike | null | undefined} parent
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {string} reason
+   * @param {Point | Position | null | undefined} place
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {string} reason
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {Node | NodeLike | null | undefined} parent
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {Point | Position | null | undefined} place
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @overload
+   * @param {Error | VFileMessage} cause
+   * @param {string | null | undefined} [origin]
+   * @returns {VFileMessage}
+   *
+   * @param {Error | VFileMessage | string} causeOrReason
+   *   Reason for message, should use markdown.
+   * @param {Node | NodeLike | MessageOptions | Point | Position | string | null | undefined} [optionsOrParentOrPlace]
+   *   Configuration (optional).
+   * @param {string | null | undefined} [origin]
+   *   Place in code where the message originates (example:
+   *   `'my-package:my-rule'` or `'my-rule'`).
+   * @returns {VFileMessage}
+   *   Message.
+   */
+  message(causeOrReason, optionsOrParentOrPlace, origin) {
+    const message = new VFileMessage(
+      // @ts-expect-error: the overloads are fine.
+      causeOrReason,
+      optionsOrParentOrPlace,
+      origin
+    );
 
     if (this.path) {
       message.name = this.path + ':' + message.name;
@@ -1414,55 +2289,29 @@ class VFile {
   }
 
   /**
-   * Create an info message associated with the file.
+   * Serialize the file.
    *
-   * Its `fatal` is set to `null` and `file` is set to the current file path.
-   * Its added to `file.messages`.
+   * > **Note**: which encodings are supported depends on the engine.
+   * > For info on Node.js, see:
+   * > <https://nodejs.org/api/util.html#whatwg-supported-encodings>.
    *
-   * @param {string | Error | VFileMessage} reason
-   *   Reason for message, uses the stack and message of the error if given.
-   * @param {Node | NodeLike | Position | Point | null | undefined} [place]
-   *   Place in file where the message occurred.
-   * @param {string | null | undefined} [origin]
-   *   Place in code where the message originates (example:
-   *   `'my-package:my-rule'` or `'my-rule'`).
-   * @returns {VFileMessage}
-   *   Message.
+   * @param {string | null | undefined} [encoding='utf8']
+   *   Character encoding to understand `value` as when it’s a `Uint8Array`
+   *   (default: `'utf-8'`).
+   * @returns {string}
+   *   Serialized file.
    */
-  info(reason, place, origin) {
-    const message = this.message(reason, place, origin);
+  toString(encoding) {
+    if (this.value === undefined) {
+      return ''
+    }
 
-    message.fatal = null;
+    if (typeof this.value === 'string') {
+      return this.value
+    }
 
-    return message
-  }
-
-  /**
-   * Create a fatal error associated with the file.
-   *
-   * Its `fatal` is set to `true` and `file` is set to the current file path.
-   * Its added to `file.messages`.
-   *
-   * > 👉 **Note**: a fatal error means that a file is no longer processable.
-   *
-   * @param {string | Error | VFileMessage} reason
-   *   Reason for message, uses the stack and message of the error if given.
-   * @param {Node | NodeLike | Position | Point | null | undefined} [place]
-   *   Place in file where the message occurred.
-   * @param {string | null | undefined} [origin]
-   *   Place in code where the message originates (example:
-   *   `'my-package:my-rule'` or `'my-rule'`).
-   * @returns {never}
-   *   Message.
-   * @throws {VFileMessage}
-   *   Message.
-   */
-  fail(reason, place, origin) {
-    const message = this.message(reason, place, origin);
-
-    message.fatal = true;
-
-    throw message
+    const decoder = new TextDecoder(encoding || undefined);
+    return decoder.decode(this.value)
   }
 }
 
@@ -1473,13 +2322,13 @@ class VFile {
  *   File path part.
  * @param {string} name
  *   Part name.
- * @returns {void}
+ * @returns {undefined}
  *   Nothing.
  */
 function assertPart(part, name) {
-  if (part && part.includes(path$1.sep)) {
+  if (part && part.includes(minpath.sep)) {
     throw new Error(
-      '`' + name + '` cannot be a path: did not expect `' + path$1.sep + '`'
+      '`' + name + '` cannot be a path: did not expect `' + minpath.sep + '`'
     )
   }
 }
@@ -1517,136 +2366,351 @@ function assertPath(path, name) {
 }
 
 /**
- * Assert `value` is a buffer.
+ * Assert `value` is an `Uint8Array`.
  *
  * @param {unknown} value
  *   thing.
- * @returns {value is Buffer}
- *   Whether `value` is a Node.js buffer.
+ * @returns {value is Uint8Array}
+ *   Whether `value` is an `Uint8Array`.
  */
-function buffer(value) {
-  return isBuffer$1(value)
+function isUint8Array$1(value) {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      'byteLength' in value &&
+      'byteOffset' in value
+  )
 }
 
+const CallableInstance =
+  /**
+   * @type {new <Parameters extends Array<unknown>, Result>(property: string | symbol) => (...parameters: Parameters) => Result}
+   */
+  (
+    /** @type {unknown} */
+    (
+      /**
+       * @this {Function}
+       * @param {string | symbol} property
+       * @returns {(...parameters: Array<unknown>) => unknown}
+       */
+      function (property) {
+        const self = this;
+        const constr = self.constructor;
+        const proto = /** @type {Record<string | symbol, Function>} */ (
+          // Prototypes do exist.
+          // type-coverage:ignore-next-line
+          constr.prototype
+        );
+        const value = proto[property];
+        /** @type {(...parameters: Array<unknown>) => unknown} */
+        const apply = function () {
+          return value.apply(apply, arguments)
+        };
+
+        Object.setPrototypeOf(apply, proto);
+
+        // Not needed for us in `unified`: we only call this on the `copy`
+        // function,
+        // and we don't need to add its fields (`length`, `name`)
+        // over.
+        // See also: GH-246.
+        // const names = Object.getOwnPropertyNames(value)
+        //
+        // for (const p of names) {
+        //   const descriptor = Object.getOwnPropertyDescriptor(value, p)
+        //   if (descriptor) Object.defineProperty(apply, p, descriptor)
+        // }
+
+        return apply
+      }
+    )
+  );
+
 /**
- * @typedef {import('unist').Node} Node
- * @typedef {import('vfile').VFileCompatible} VFileCompatible
- * @typedef {import('vfile').VFileValue} VFileValue
- * @typedef {import('..').Processor} Processor
- * @typedef {import('..').Plugin} Plugin
- * @typedef {import('..').Preset} Preset
- * @typedef {import('..').Pluggable} Pluggable
- * @typedef {import('..').PluggableList} PluggableList
- * @typedef {import('..').Transformer} Transformer
- * @typedef {import('..').Parser} Parser
- * @typedef {import('..').Compiler} Compiler
- * @typedef {import('..').RunCallback} RunCallback
- * @typedef {import('..').ProcessCallback} ProcessCallback
+ * @typedef {import('trough').Pipeline} Pipeline
  *
- * @typedef Context
- * @property {Node} tree
- * @property {VFile} file
+ * @typedef {import('unist').Node} Node
+ *
+ * @typedef {import('vfile').Compatible} Compatible
+ * @typedef {import('vfile').Value} Value
+ *
+ * @typedef {import('../index.js').CompileResultMap} CompileResultMap
+ * @typedef {import('../index.js').Data} Data
+ * @typedef {import('../index.js').Settings} Settings
  */
 
 
-// Expose a frozen processor.
-const unified = base().freeze();
+// To do: next major: drop `Compiler`, `Parser`: prefer lowercase.
+
+// To do: we could start yielding `never` in TS when a parser is missing and
+// `parse` is called.
+// Currently, we allow directly setting `processor.parser`, which is untyped.
 
 const own$3 = {}.hasOwnProperty;
 
-// Function to create the first processor.
 /**
- * @returns {Processor}
+ * @template {Node | undefined} [ParseTree=undefined]
+ *   Output of `parse` (optional).
+ * @template {Node | undefined} [HeadTree=undefined]
+ *   Input for `run` (optional).
+ * @template {Node | undefined} [TailTree=undefined]
+ *   Output for `run` (optional).
+ * @template {Node | undefined} [CompileTree=undefined]
+ *   Input of `stringify` (optional).
+ * @template {CompileResults | undefined} [CompileResult=undefined]
+ *   Output of `stringify` (optional).
+ * @extends {CallableInstance<[], Processor<ParseTree, HeadTree, TailTree, CompileTree, CompileResult>>}
  */
-function base() {
-  const transformers = trough();
-  /** @type {Processor['attachers']} */
-  const attachers = [];
-  /** @type {Record<string, unknown>} */
-  let namespace = {};
-  /** @type {boolean|undefined} */
-  let frozen;
-  let freezeIndex = -1;
+class Processor extends CallableInstance {
+  /**
+   * Create a processor.
+   */
+  constructor() {
+    // If `Processor()` is called (w/o new), `copy` is called instead.
+    super('copy');
 
-  // Data management.
-  // @ts-expect-error: overloads are handled.
-  processor.data = data;
-  processor.Parser = undefined;
-  processor.Compiler = undefined;
+    /**
+     * Compiler to use (deprecated).
+     *
+     * @deprecated
+     *   Use `compiler` instead.
+     * @type {(
+     *   Compiler<
+     *     CompileTree extends undefined ? Node : CompileTree,
+     *     CompileResult extends undefined ? CompileResults : CompileResult
+     *   > |
+     *   undefined
+     * )}
+     */
+    this.Compiler = undefined;
 
-  // Lock.
-  processor.freeze = freeze;
+    /**
+     * Parser to use (deprecated).
+     *
+     * @deprecated
+     *   Use `parser` instead.
+     * @type {(
+     *   Parser<ParseTree extends undefined ? Node : ParseTree> |
+     *   undefined
+     * )}
+     */
+    this.Parser = undefined;
 
-  // Plugins.
-  processor.attachers = attachers;
-  // @ts-expect-error: overloads are handled.
-  processor.use = use;
+    // Note: the following fields are considered private.
+    // However, they are needed for tests, and TSC generates an untyped
+    // `private freezeIndex` field for, which trips `type-coverage` up.
+    // Instead, we use `@deprecated` to visualize that they shouldn’t be used.
+    /**
+     * Internal list of configured plugins.
+     *
+     * @deprecated
+     *   This is a private internal property and should not be used.
+     * @type {Array<PluginTuple<Array<unknown>>>}
+     */
+    this.attachers = [];
 
-  // API.
-  processor.parse = parse;
-  processor.stringify = stringify;
-  // @ts-expect-error: overloads are handled.
-  processor.run = run;
-  processor.runSync = runSync;
-  // @ts-expect-error: overloads are handled.
-  processor.process = process;
-  processor.processSync = processSync;
+    /**
+     * Compiler to use.
+     *
+     * @type {(
+     *   Compiler<
+     *     CompileTree extends undefined ? Node : CompileTree,
+     *     CompileResult extends undefined ? CompileResults : CompileResult
+     *   > |
+     *   undefined
+     * )}
+     */
+    this.compiler = undefined;
 
-  // Expose.
-  return processor
+    /**
+     * Internal state to track where we are while freezing.
+     *
+     * @deprecated
+     *   This is a private internal property and should not be used.
+     * @type {number}
+     */
+    this.freezeIndex = -1;
 
-  // Create a new processor based on the processor in the current scope.
-  /** @type {Processor} */
-  function processor() {
-    const destination = base();
+    /**
+     * Internal state to track whether we’re frozen.
+     *
+     * @deprecated
+     *   This is a private internal property and should not be used.
+     * @type {boolean | undefined}
+     */
+    this.frozen = undefined;
+
+    /**
+     * Internal state.
+     *
+     * @deprecated
+     *   This is a private internal property and should not be used.
+     * @type {Data}
+     */
+    this.namespace = {};
+
+    /**
+     * Parser to use.
+     *
+     * @type {(
+     *   Parser<ParseTree extends undefined ? Node : ParseTree> |
+     *   undefined
+     * )}
+     */
+    this.parser = undefined;
+
+    /**
+     * Internal list of configured transformers.
+     *
+     * @deprecated
+     *   This is a private internal property and should not be used.
+     * @type {Pipeline}
+     */
+    this.transformers = trough();
+  }
+
+  /**
+   * Copy a processor.
+   *
+   * @deprecated
+   *   This is a private internal method and should not be used.
+   * @returns {Processor<ParseTree, HeadTree, TailTree, CompileTree, CompileResult>}
+   *   New *unfrozen* processor ({@linkcode Processor}) that is
+   *   configured to work the same as its ancestor.
+   *   When the descendant processor is configured in the future it does not
+   *   affect the ancestral processor.
+   */
+  copy() {
+    // Cast as the type parameters will be the same after attaching.
+    const destination =
+      /** @type {Processor<ParseTree, HeadTree, TailTree, CompileTree, CompileResult>} */ (
+        new Processor()
+      );
     let index = -1;
 
-    while (++index < attachers.length) {
-      destination.use(...attachers[index]);
+    while (++index < this.attachers.length) {
+      const attacher = this.attachers[index];
+      destination.use(...attacher);
     }
 
-    destination.data(extend$1(true, {}, namespace));
+    destination.data(extend(true, {}, this.namespace));
 
     return destination
   }
 
   /**
-   * @param {string|Record<string, unknown>} [key]
-   * @param {unknown} [value]
+   * Configure the processor with info available to all plugins.
+   * Information is stored in an object.
+   *
+   * Typically, options can be given to a specific plugin, but sometimes it
+   * makes sense to have information shared with several plugins.
+   * For example, a list of HTML elements that are self-closing, which is
+   * needed during all phases.
+   *
+   * > **Note**: setting information cannot occur on *frozen* processors.
+   * > Call the processor first to create a new unfrozen processor.
+   *
+   * > **Note**: to register custom data in TypeScript, augment the
+   * > {@linkcode Data} interface.
+   *
+   * @example
+   *   This example show how to get and set info:
+   *
+   *   ```js
+   *   import {unified} from 'unified'
+   *
+   *   const processor = unified().data('alpha', 'bravo')
+   *
+   *   processor.data('alpha') // => 'bravo'
+   *
+   *   processor.data() // => {alpha: 'bravo'}
+   *
+   *   processor.data({charlie: 'delta'})
+   *
+   *   processor.data() // => {charlie: 'delta'}
+   *   ```
+   *
+   * @template {keyof Data} Key
+   *
+   * @overload
+   * @returns {Data}
+   *
+   * @overload
+   * @param {Data} dataset
+   * @returns {Processor<ParseTree, HeadTree, TailTree, CompileTree, CompileResult>}
+   *
+   * @overload
+   * @param {Key} key
+   * @returns {Data[Key]}
+   *
+   * @overload
+   * @param {Key} key
+   * @param {Data[Key]} value
+   * @returns {Processor<ParseTree, HeadTree, TailTree, CompileTree, CompileResult>}
+   *
+   * @param {Data | Key} [key]
+   *   Key to get or set, or entire dataset to set, or nothing to get the
+   *   entire dataset (optional).
+   * @param {Data[Key]} [value]
+   *   Value to set (optional).
    * @returns {unknown}
+   *   The current processor when setting, the value at `key` when getting, or
+   *   the entire dataset when getting without key.
    */
-  function data(key, value) {
+  data(key, value) {
     if (typeof key === 'string') {
       // Set `key`.
       if (arguments.length === 2) {
-        assertUnfrozen('data', frozen);
-        namespace[key] = value;
-        return processor
+        assertUnfrozen('data', this.frozen);
+        this.namespace[key] = value;
+        return this
       }
 
       // Get `key`.
-      return (own$3.call(namespace, key) && namespace[key]) || null
+      return (own$3.call(this.namespace, key) && this.namespace[key]) || undefined
     }
 
     // Set space.
     if (key) {
-      assertUnfrozen('data', frozen);
-      namespace = key;
-      return processor
+      assertUnfrozen('data', this.frozen);
+      this.namespace = key;
+      return this
     }
 
     // Get space.
-    return namespace
+    return this.namespace
   }
 
-  /** @type {Processor['freeze']} */
-  function freeze() {
-    if (frozen) {
-      return processor
+  /**
+   * Freeze a processor.
+   *
+   * Frozen processors are meant to be extended and not to be configured
+   * directly.
+   *
+   * When a processor is frozen it cannot be unfrozen.
+   * New processors working the same way can be created by calling the
+   * processor.
+   *
+   * It’s possible to freeze processors explicitly by calling `.freeze()`.
+   * Processors freeze automatically when `.parse()`, `.run()`, `.runSync()`,
+   * `.stringify()`, `.process()`, or `.processSync()` are called.
+   *
+   * @returns {Processor<ParseTree, HeadTree, TailTree, CompileTree, CompileResult>}
+   *   The current processor.
+   */
+  freeze() {
+    if (this.frozen) {
+      return this
     }
 
-    while (++freezeIndex < attachers.length) {
-      const [attacher, ...options] = attachers[freezeIndex];
+    // Cast so that we can type plugins easier.
+    // Plugins are supposed to be usable on different processors, not just on
+    // this exact processor.
+    const self = /** @type {Processor} */ (/** @type {unknown} */ (this));
+
+    while (++this.freezeIndex < this.attachers.length) {
+      const [attacher, ...options] = this.attachers[this.freezeIndex];
 
       if (options[0] === false) {
         continue
@@ -1656,33 +2720,432 @@ function base() {
         options[0] = undefined;
       }
 
-      /** @type {Transformer|void} */
-      const transformer = attacher.call(processor, ...options);
+      const transformer = attacher.call(self, ...options);
 
       if (typeof transformer === 'function') {
-        transformers.use(transformer);
+        this.transformers.use(transformer);
       }
     }
 
-    frozen = true;
-    freezeIndex = Number.POSITIVE_INFINITY;
+    this.frozen = true;
+    this.freezeIndex = Number.POSITIVE_INFINITY;
 
-    return processor
+    return this
   }
 
   /**
-   * @param {Pluggable|null|undefined} [value]
-   * @param {...unknown} options
-   * @returns {Processor}
+   * Parse text to a syntax tree.
+   *
+   * > **Note**: `parse` freezes the processor if not already *frozen*.
+   *
+   * > **Note**: `parse` performs the parse phase, not the run phase or other
+   * > phases.
+   *
+   * @param {Compatible | undefined} [file]
+   *   file to parse (optional); typically `string` or `VFile`; any value
+   *   accepted as `x` in `new VFile(x)`.
+   * @returns {ParseTree extends undefined ? Node : ParseTree}
+   *   Syntax tree representing `file`.
    */
-  function use(value, ...options) {
-    /** @type {Record<string, unknown>|undefined} */
-    let settings;
+  parse(file) {
+    this.freeze();
+    const realFile = vfile(file);
+    const parser = this.parser || this.Parser;
+    assertParser('parse', parser);
+    return parser(String(realFile), realFile)
+  }
 
-    assertUnfrozen('use', frozen);
+  /**
+   * Process the given file as configured on the processor.
+   *
+   * > **Note**: `process` freezes the processor if not already *frozen*.
+   *
+   * > **Note**: `process` performs the parse, run, and stringify phases.
+   *
+   * @overload
+   * @param {Compatible | undefined} file
+   * @param {ProcessCallback<VFileWithOutput<CompileResult>>} done
+   * @returns {undefined}
+   *
+   * @overload
+   * @param {Compatible | undefined} [file]
+   * @returns {Promise<VFileWithOutput<CompileResult>>}
+   *
+   * @param {Compatible | undefined} [file]
+   *   File (optional); typically `string` or `VFile`]; any value accepted as
+   *   `x` in `new VFile(x)`.
+   * @param {ProcessCallback<VFileWithOutput<CompileResult>> | undefined} [done]
+   *   Callback (optional).
+   * @returns {Promise<VFile> | undefined}
+   *   Nothing if `done` is given.
+   *   Otherwise a promise, rejected with a fatal error or resolved with the
+   *   processed file.
+   *
+   *   The parsed, transformed, and compiled value is available at
+   *   `file.value` (see note).
+   *
+   *   > **Note**: unified typically compiles by serializing: most
+   *   > compilers return `string` (or `Uint8Array`).
+   *   > Some compilers, such as the one configured with
+   *   > [`rehype-react`][rehype-react], return other values (in this case, a
+   *   > React tree).
+   *   > If you’re using a compiler that doesn’t serialize, expect different
+   *   > result values.
+   *   >
+   *   > To register custom results in TypeScript, add them to
+   *   > {@linkcode CompileResultMap}.
+   *
+   *   [rehype-react]: https://github.com/rehypejs/rehype-react
+   */
+  process(file, done) {
+    const self = this;
+
+    this.freeze();
+    assertParser('process', this.parser || this.Parser);
+    assertCompiler('process', this.compiler || this.Compiler);
+
+    return done ? executor(undefined, done) : new Promise(executor)
+
+    // Note: `void`s needed for TS.
+    /**
+     * @param {((file: VFileWithOutput<CompileResult>) => undefined | void) | undefined} resolve
+     * @param {(error: Error | undefined) => undefined | void} reject
+     * @returns {undefined}
+     */
+    function executor(resolve, reject) {
+      const realFile = vfile(file);
+      // Assume `ParseTree` (the result of the parser) matches `HeadTree` (the
+      // input of the first transform).
+      const parseTree =
+        /** @type {HeadTree extends undefined ? Node : HeadTree} */ (
+          /** @type {unknown} */ (self.parse(realFile))
+        );
+
+      self.run(parseTree, realFile, function (error, tree, file) {
+        if (error || !tree || !file) {
+          return realDone(error)
+        }
+
+        // Assume `TailTree` (the output of the last transform) matches
+        // `CompileTree` (the input of the compiler).
+        const compileTree =
+          /** @type {CompileTree extends undefined ? Node : CompileTree} */ (
+            /** @type {unknown} */ (tree)
+          );
+
+        const compileResult = self.stringify(compileTree, file);
+
+        if (looksLikeAValue(compileResult)) {
+          file.value = compileResult;
+        } else {
+          file.result = compileResult;
+        }
+
+        realDone(error, /** @type {VFileWithOutput<CompileResult>} */ (file));
+      });
+
+      /**
+       * @param {Error | undefined} error
+       * @param {VFileWithOutput<CompileResult> | undefined} [file]
+       * @returns {undefined}
+       */
+      function realDone(error, file) {
+        if (error || !file) {
+          reject(error);
+        } else if (resolve) {
+          resolve(file);
+        } else {
+          done(undefined, file);
+        }
+      }
+    }
+  }
+
+  /**
+   * Process the given file as configured on the processor.
+   *
+   * An error is thrown if asynchronous transforms are configured.
+   *
+   * > **Note**: `processSync` freezes the processor if not already *frozen*.
+   *
+   * > **Note**: `processSync` performs the parse, run, and stringify phases.
+   *
+   * @param {Compatible | undefined} [file]
+   *   File (optional); typically `string` or `VFile`; any value accepted as
+   *   `x` in `new VFile(x)`.
+   * @returns {VFileWithOutput<CompileResult>}
+   *   The processed file.
+   *
+   *   The parsed, transformed, and compiled value is available at
+   *   `file.value` (see note).
+   *
+   *   > **Note**: unified typically compiles by serializing: most
+   *   > compilers return `string` (or `Uint8Array`).
+   *   > Some compilers, such as the one configured with
+   *   > [`rehype-react`][rehype-react], return other values (in this case, a
+   *   > React tree).
+   *   > If you’re using a compiler that doesn’t serialize, expect different
+   *   > result values.
+   *   >
+   *   > To register custom results in TypeScript, add them to
+   *   > {@linkcode CompileResultMap}.
+   *
+   *   [rehype-react]: https://github.com/rehypejs/rehype-react
+   */
+  processSync(file) {
+    /** @type {boolean} */
+    let complete = false;
+    /** @type {VFileWithOutput<CompileResult> | undefined} */
+    let result;
+
+    this.freeze();
+    assertParser('processSync', this.parser || this.Parser);
+    assertCompiler('processSync', this.compiler || this.Compiler);
+
+    this.process(file, realDone);
+    assertDone('processSync', 'process', complete);
+
+    return result
+
+    /**
+     * @type {ProcessCallback<VFileWithOutput<CompileResult>>}
+     */
+    function realDone(error, file) {
+      complete = true;
+      bail(error);
+      result = file;
+    }
+  }
+
+  /**
+   * Run *transformers* on a syntax tree.
+   *
+   * > **Note**: `run` freezes the processor if not already *frozen*.
+   *
+   * > **Note**: `run` performs the run phase, not other phases.
+   *
+   * @overload
+   * @param {HeadTree extends undefined ? Node : HeadTree} tree
+   * @param {RunCallback<TailTree extends undefined ? Node : TailTree>} done
+   * @returns {undefined}
+   *
+   * @overload
+   * @param {HeadTree extends undefined ? Node : HeadTree} tree
+   * @param {Compatible | undefined} file
+   * @param {RunCallback<TailTree extends undefined ? Node : TailTree>} done
+   * @returns {undefined}
+   *
+   * @overload
+   * @param {HeadTree extends undefined ? Node : HeadTree} tree
+   * @param {Compatible | undefined} [file]
+   * @returns {Promise<TailTree extends undefined ? Node : TailTree>}
+   *
+   * @param {HeadTree extends undefined ? Node : HeadTree} tree
+   *   Tree to transform and inspect.
+   * @param {(
+   *   RunCallback<TailTree extends undefined ? Node : TailTree> |
+   *   Compatible
+   * )} [file]
+   *   File associated with `node` (optional); any value accepted as `x` in
+   *   `new VFile(x)`.
+   * @param {RunCallback<TailTree extends undefined ? Node : TailTree>} [done]
+   *   Callback (optional).
+   * @returns {Promise<TailTree extends undefined ? Node : TailTree> | undefined}
+   *   Nothing if `done` is given.
+   *   Otherwise, a promise rejected with a fatal error or resolved with the
+   *   transformed tree.
+   */
+  run(tree, file, done) {
+    assertNode(tree);
+    this.freeze();
+
+    const transformers = this.transformers;
+
+    if (!done && typeof file === 'function') {
+      done = file;
+      file = undefined;
+    }
+
+    return done ? executor(undefined, done) : new Promise(executor)
+
+    // Note: `void`s needed for TS.
+    /**
+     * @param {(
+     *   ((tree: TailTree extends undefined ? Node : TailTree) => undefined | void) |
+     *   undefined
+     * )} resolve
+     * @param {(error: Error) => undefined | void} reject
+     * @returns {undefined}
+     */
+    function executor(resolve, reject) {
+      const realFile = vfile(file);
+      transformers.run(tree, realFile, realDone);
+
+      /**
+       * @param {Error | undefined} error
+       * @param {Node} outputTree
+       * @param {VFile} file
+       * @returns {undefined}
+       */
+      function realDone(error, outputTree, file) {
+        const resultingTree =
+          /** @type {TailTree extends undefined ? Node : TailTree} */ (
+            outputTree || tree
+          );
+
+        if (error) {
+          reject(error);
+        } else if (resolve) {
+          resolve(resultingTree);
+        } else {
+          done(undefined, resultingTree, file);
+        }
+      }
+    }
+  }
+
+  /**
+   * Run *transformers* on a syntax tree.
+   *
+   * An error is thrown if asynchronous transforms are configured.
+   *
+   * > **Note**: `runSync` freezes the processor if not already *frozen*.
+   *
+   * > **Note**: `runSync` performs the run phase, not other phases.
+   *
+   * @param {HeadTree extends undefined ? Node : HeadTree} tree
+   *   Tree to transform and inspect.
+   * @param {Compatible | undefined} [file]
+   *   File associated with `node` (optional); any value accepted as `x` in
+   *   `new VFile(x)`.
+   * @returns {TailTree extends undefined ? Node : TailTree}
+   *   Transformed tree.
+   */
+  runSync(tree, file) {
+    /** @type {boolean} */
+    let complete = false;
+    /** @type {(TailTree extends undefined ? Node : TailTree) | undefined} */
+    let result;
+
+    this.run(tree, file, realDone);
+
+    assertDone('runSync', 'run', complete);
+    return result
+
+    /**
+     * @type {RunCallback<TailTree extends undefined ? Node : TailTree>}
+     */
+    function realDone(error, tree) {
+      bail(error);
+      result = tree;
+      complete = true;
+    }
+  }
+
+  /**
+   * Compile a syntax tree.
+   *
+   * > **Note**: `stringify` freezes the processor if not already *frozen*.
+   *
+   * > **Note**: `stringify` performs the stringify phase, not the run phase
+   * > or other phases.
+   *
+   * @param {CompileTree extends undefined ? Node : CompileTree} tree
+   *   Tree to compile.
+   * @param {Compatible | undefined} [file]
+   *   File associated with `node` (optional); any value accepted as `x` in
+   *   `new VFile(x)`.
+   * @returns {CompileResult extends undefined ? Value : CompileResult}
+   *   Textual representation of the tree (see note).
+   *
+   *   > **Note**: unified typically compiles by serializing: most compilers
+   *   > return `string` (or `Uint8Array`).
+   *   > Some compilers, such as the one configured with
+   *   > [`rehype-react`][rehype-react], return other values (in this case, a
+   *   > React tree).
+   *   > If you’re using a compiler that doesn’t serialize, expect different
+   *   > result values.
+   *   >
+   *   > To register custom results in TypeScript, add them to
+   *   > {@linkcode CompileResultMap}.
+   *
+   *   [rehype-react]: https://github.com/rehypejs/rehype-react
+   */
+  stringify(tree, file) {
+    this.freeze();
+    const realFile = vfile(file);
+    const compiler = this.compiler || this.Compiler;
+    assertCompiler('stringify', compiler);
+    assertNode(tree);
+
+    return compiler(tree, realFile)
+  }
+
+  /**
+   * Configure the processor to use a plugin, a list of usable values, or a
+   * preset.
+   *
+   * If the processor is already using a plugin, the previous plugin
+   * configuration is changed based on the options that are passed in.
+   * In other words, the plugin is not added a second time.
+   *
+   * > **Note**: `use` cannot be called on *frozen* processors.
+   * > Call the processor first to create a new unfrozen processor.
+   *
+   * @example
+   *   There are many ways to pass plugins to `.use()`.
+   *   This example gives an overview:
+   *
+   *   ```js
+   *   import {unified} from 'unified'
+   *
+   *   unified()
+   *     // Plugin with options:
+   *     .use(pluginA, {x: true, y: true})
+   *     // Passing the same plugin again merges configuration (to `{x: true, y: false, z: true}`):
+   *     .use(pluginA, {y: false, z: true})
+   *     // Plugins:
+   *     .use([pluginB, pluginC])
+   *     // Two plugins, the second with options:
+   *     .use([pluginD, [pluginE, {}]])
+   *     // Preset with plugins and settings:
+   *     .use({plugins: [pluginF, [pluginG, {}]], settings: {position: false}})
+   *     // Settings only:
+   *     .use({settings: {position: false}})
+   *   ```
+   *
+   * @template {Array<unknown>} [Parameters=[]]
+   * @template {Node | string | undefined} [Input=undefined]
+   * @template [Output=Input]
+   *
+   * @overload
+   * @param {Preset | null | undefined} [preset]
+   * @returns {Processor<ParseTree, HeadTree, TailTree, CompileTree, CompileResult>}
+   *
+   * @overload
+   * @param {PluggableList} list
+   * @returns {Processor<ParseTree, HeadTree, TailTree, CompileTree, CompileResult>}
+   *
+   * @overload
+   * @param {Plugin<Parameters, Input, Output>} plugin
+   * @param {...(Parameters | [boolean])} parameters
+   * @returns {UsePlugin<ParseTree, HeadTree, TailTree, CompileTree, CompileResult, Input, Output>}
+   *
+   * @param {PluggableList | Plugin | Preset | null | undefined} value
+   *   Usable value.
+   * @param {...unknown} parameters
+   *   Parameters, when a plugin is given as a usable value.
+   * @returns {Processor<ParseTree, HeadTree, TailTree, CompileTree, CompileResult>}
+   *   Current processor.
+   */
+  use(value, ...parameters) {
+    const attachers = this.attachers;
+    const namespace = this.namespace;
+
+    assertUnfrozen('use', this.frozen);
 
     if (value === null || value === undefined) ; else if (typeof value === 'function') {
-      addPlugin(value, ...options);
+      addPlugin(value, parameters);
     } else if (typeof value === 'object') {
       if (Array.isArray(value)) {
         addList(value);
@@ -1693,23 +3156,20 @@ function base() {
       throw new TypeError('Expected usable value, not `' + value + '`')
     }
 
-    if (settings) {
-      namespace.settings = Object.assign(namespace.settings || {}, settings);
-    }
-
-    return processor
+    return this
 
     /**
-     * @param {import('..').Pluggable<unknown[]>} value
-     * @returns {void}
+     * @param {Pluggable} value
+     * @returns {undefined}
      */
     function add(value) {
       if (typeof value === 'function') {
-        addPlugin(value);
+        addPlugin(value, []);
       } else if (typeof value === 'object') {
         if (Array.isArray(value)) {
-          const [plugin, ...options] = value;
-          addPlugin(plugin, ...options);
+          const [plugin, ...parameters] =
+            /** @type {PluginTuple<Array<unknown>>} */ (value);
+          addPlugin(plugin, parameters);
         } else {
           addPreset(value);
         }
@@ -1720,19 +3180,25 @@ function base() {
 
     /**
      * @param {Preset} result
-     * @returns {void}
+     * @returns {undefined}
      */
     function addPreset(result) {
+      if (!('plugins' in result) && !('settings' in result)) {
+        throw new Error(
+          'Expected usable value but received an empty preset, which is probably a mistake: presets typically come with `plugins` and sometimes with `settings`, but this has neither'
+        )
+      }
+
       addList(result.plugins);
 
       if (result.settings) {
-        settings = Object.assign(settings || {}, result.settings);
+        namespace.settings = extend(true, namespace.settings, result.settings);
       }
     }
 
     /**
-     * @param {PluggableList|null|undefined} [plugins]
-     * @returns {void}
+     * @param {PluggableList | null | undefined} plugins
+     * @returns {undefined}
      */
     function addList(plugins) {
       let index = -1;
@@ -1749,269 +3215,67 @@ function base() {
 
     /**
      * @param {Plugin} plugin
-     * @param {...unknown} [value]
-     * @returns {void}
+     * @param {Array<unknown>} parameters
+     * @returns {undefined}
      */
-    function addPlugin(plugin, value) {
+    function addPlugin(plugin, parameters) {
       let index = -1;
-      /** @type {Processor['attachers'][number]|undefined} */
-      let entry;
+      let entryIndex = -1;
 
       while (++index < attachers.length) {
         if (attachers[index][0] === plugin) {
-          entry = attachers[index];
+          entryIndex = index;
           break
         }
       }
 
-      if (entry) {
-        if (isPlainObject(entry[1]) && isPlainObject(value)) {
-          value = extend$1(true, entry[1], value);
-        }
-
-        entry[1] = value;
-      } else {
-        // @ts-expect-error: fine.
-        attachers.push([...arguments]);
+      if (entryIndex === -1) {
+        attachers.push([plugin, ...parameters]);
       }
-    }
-  }
-
-  /** @type {Processor['parse']} */
-  function parse(doc) {
-    processor.freeze();
-    const file = vfile(doc);
-    const Parser = processor.Parser;
-    assertParser('parse', Parser);
-
-    if (newable(Parser, 'parse')) {
-      // @ts-expect-error: `newable` checks this.
-      return new Parser(String(file), file).parse()
-    }
-
-    // @ts-expect-error: `newable` checks this.
-    return Parser(String(file), file) // eslint-disable-line new-cap
-  }
-
-  /** @type {Processor['stringify']} */
-  function stringify(node, doc) {
-    processor.freeze();
-    const file = vfile(doc);
-    const Compiler = processor.Compiler;
-    assertCompiler('stringify', Compiler);
-    assertNode(node);
-
-    if (newable(Compiler, 'compile')) {
-      // @ts-expect-error: `newable` checks this.
-      return new Compiler(node, file).compile()
-    }
-
-    // @ts-expect-error: `newable` checks this.
-    return Compiler(node, file) // eslint-disable-line new-cap
-  }
-
-  /**
-   * @param {Node} node
-   * @param {VFileCompatible|RunCallback} [doc]
-   * @param {RunCallback} [callback]
-   * @returns {Promise<Node>|void}
-   */
-  function run(node, doc, callback) {
-    assertNode(node);
-    processor.freeze();
-
-    if (!callback && typeof doc === 'function') {
-      callback = doc;
-      doc = undefined;
-    }
-
-    if (!callback) {
-      return new Promise(executor)
-    }
-
-    executor(null, callback);
-
-    /**
-     * @param {null|((node: Node) => void)} resolve
-     * @param {(error: Error) => void} reject
-     * @returns {void}
-     */
-    function executor(resolve, reject) {
-      // @ts-expect-error: `doc` can’t be a callback anymore, we checked.
-      transformers.run(node, vfile(doc), done);
-
-      /**
-       * @param {Error|null} error
-       * @param {Node} tree
-       * @param {VFile} file
-       * @returns {void}
-       */
-      function done(error, tree, file) {
-        tree = tree || node;
-        if (error) {
-          reject(error);
-        } else if (resolve) {
-          resolve(tree);
-        } else {
-          // @ts-expect-error: `callback` is defined if `resolve` is not.
-          callback(null, tree, file);
+      // Only set if there was at least a `primary` value, otherwise we’d change
+      // `arguments.length`.
+      else if (parameters.length > 0) {
+        let [primary, ...rest] = parameters;
+        const currentPrimary = attachers[entryIndex][1];
+        if (isPlainObject(currentPrimary) && isPlainObject(primary)) {
+          primary = extend(true, currentPrimary, primary);
         }
+
+        attachers[entryIndex] = [plugin, primary, ...rest];
       }
-    }
-  }
-
-  /** @type {Processor['runSync']} */
-  function runSync(node, file) {
-    /** @type {Node|undefined} */
-    let result;
-    /** @type {boolean|undefined} */
-    let complete;
-
-    processor.run(node, file, done);
-
-    assertDone('runSync', 'run', complete);
-
-    // @ts-expect-error: we either bailed on an error or have a tree.
-    return result
-
-    /**
-     * @param {Error|null} [error]
-     * @param {Node} [tree]
-     * @returns {void}
-     */
-    function done(error, tree) {
-      bail(error);
-      result = tree;
-      complete = true;
-    }
-  }
-
-  /**
-   * @param {VFileCompatible} doc
-   * @param {ProcessCallback} [callback]
-   * @returns {Promise<VFile>|undefined}
-   */
-  function process(doc, callback) {
-    processor.freeze();
-    assertParser('process', processor.Parser);
-    assertCompiler('process', processor.Compiler);
-
-    if (!callback) {
-      return new Promise(executor)
-    }
-
-    executor(null, callback);
-
-    /**
-     * @param {null|((file: VFile) => void)} resolve
-     * @param {(error?: Error|null|undefined) => void} reject
-     * @returns {void}
-     */
-    function executor(resolve, reject) {
-      const file = vfile(doc);
-
-      processor.run(processor.parse(file), file, (error, tree, file) => {
-        if (error || !tree || !file) {
-          done(error);
-        } else {
-          /** @type {unknown} */
-          const result = processor.stringify(tree, file);
-
-          if (result === undefined || result === null) ; else if (looksLikeAVFileValue(result)) {
-            file.value = result;
-          } else {
-            file.result = result;
-          }
-
-          done(error, file);
-        }
-      });
-
-      /**
-       * @param {Error|null|undefined} [error]
-       * @param {VFile|undefined} [file]
-       * @returns {void}
-       */
-      function done(error, file) {
-        if (error || !file) {
-          reject(error);
-        } else if (resolve) {
-          resolve(file);
-        } else {
-          // @ts-expect-error: `callback` is defined if `resolve` is not.
-          callback(null, file);
-        }
-      }
-    }
-  }
-
-  /** @type {Processor['processSync']} */
-  function processSync(doc) {
-    /** @type {boolean|undefined} */
-    let complete;
-
-    processor.freeze();
-    assertParser('processSync', processor.Parser);
-    assertCompiler('processSync', processor.Compiler);
-
-    const file = vfile(doc);
-
-    processor.process(file, done);
-
-    assertDone('processSync', 'process', complete);
-
-    return file
-
-    /**
-     * @param {Error|null|undefined} [error]
-     * @returns {void}
-     */
-    function done(error) {
-      complete = true;
-      bail(error);
     }
   }
 }
 
+// Note: this returns a *callable* instance.
+// That’s why it’s documented as a function.
 /**
- * Check if `value` is a constructor.
+ * Create a new processor.
  *
- * @param {unknown} value
- * @param {string} name
- * @returns {boolean}
- */
-function newable(value, name) {
-  return (
-    typeof value === 'function' &&
-    // Prototypes do exist.
-    // type-coverage:ignore-next-line
-    value.prototype &&
-    // A function with keys in its prototype is probably a constructor.
-    // Classes’ prototype methods are not enumerable, so we check if some value
-    // exists in the prototype.
-    // type-coverage:ignore-next-line
-    (keys(value.prototype) || name in value.prototype)
-  )
-}
-
-/**
- * Check if `value` is an object with keys.
+ * @example
+ *   This example shows how a new processor can be created (from `remark`) and linked
+ *   to **stdin**(4) and **stdout**(4).
  *
- * @param {Record<string, unknown>} value
- * @returns {boolean}
+ *   ```js
+ *   import process from 'node:process'
+ *   import concatStream from 'concat-stream'
+ *   import {remark} from 'remark'
+ *
+ *   process.stdin.pipe(
+ *     concatStream(function (buf) {
+ *       process.stdout.write(String(remark().processSync(buf)))
+ *     })
+ *   )
+ *   ```
+ *
+ * @returns
+ *   New *unfrozen* processor (`processor`).
+ *
+ *   This processor is configured to work the same as its ancestor.
+ *   When the descendant processor is configured in the future it does not
+ *   affect the ancestral processor.
  */
-function keys(value) {
-  /** @type {string} */
-  let key;
-
-  for (key in value) {
-    if (own$3.call(value, key)) {
-      return true
-    }
-  }
-
-  return false
-}
+const unified = new Processor().freeze();
 
 /**
  * Assert a parser is available.
@@ -2022,7 +3286,7 @@ function keys(value) {
  */
 function assertParser(name, value) {
   if (typeof value !== 'function') {
-    throw new TypeError('Cannot `' + name + '` without `Parser`')
+    throw new TypeError('Cannot `' + name + '` without `parser`')
   }
 }
 
@@ -2035,7 +3299,7 @@ function assertParser(name, value) {
  */
 function assertCompiler(name, value) {
   if (typeof value !== 'function') {
-    throw new TypeError('Cannot `' + name + '` without `Compiler`')
+    throw new TypeError('Cannot `' + name + '` without `compiler`')
   }
 }
 
@@ -2088,7 +3352,7 @@ function assertDone(name, asyncName, complete) {
 }
 
 /**
- * @param {VFileCompatible} [value]
+ * @param {Compatible | undefined} [value]
  * @returns {VFile}
  */
 function vfile(value) {
@@ -2096,7 +3360,7 @@ function vfile(value) {
 }
 
 /**
- * @param {VFileCompatible} [value]
+ * @param {Compatible | undefined} [value]
  * @returns {value is VFile}
  */
 function looksLikeAVFile(value) {
@@ -2110,10 +3374,27 @@ function looksLikeAVFile(value) {
 
 /**
  * @param {unknown} [value]
- * @returns {value is VFileValue}
+ * @returns {value is Value}
  */
-function looksLikeAVFileValue(value) {
-  return typeof value === 'string' || isBuffer$1(value)
+function looksLikeAValue(value) {
+  return typeof value === 'string' || isUint8Array(value)
+}
+
+/**
+ * Assert `value` is an `Uint8Array`.
+ *
+ * @param {unknown} value
+ *   thing.
+ * @returns {value is Uint8Array}
+ *   Whether `value` is an `Uint8Array`.
+ */
+function isUint8Array(value) {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      'byteLength' in value &&
+      'byteOffset' in value
+  )
 }
 
 /**
@@ -2236,9 +3517,10 @@ function zwitch(key, options) {
 }
 
 /**
- * @typedef {import('./types.js').Options} Options
- * @typedef {import('./types.js').State} State
+ * @import {Options, State} from './types.js'
  */
+
+const own$1 = {}.hasOwnProperty;
 
 /**
  * @param {State} base
@@ -2258,15 +3540,34 @@ function configure(base, extension) {
   }
 
   for (key in extension) {
-    if (key === 'extensions') ; else if (key === 'unsafe' || key === 'join') {
-      /* c8 ignore next 2 */
-      // @ts-expect-error: hush.
-      base[key] = [...(base[key] || []), ...(extension[key] || [])];
-    } else if (key === 'handlers') {
-      base[key] = Object.assign(base[key], extension[key] || {});
-    } else {
-      // @ts-expect-error: hush.
-      base.options[key] = extension[key];
+    if (own$1.call(extension, key)) {
+      switch (key) {
+        case 'extensions': {
+          // Empty.
+          break
+        }
+
+        /* c8 ignore next 4 */
+        case 'unsafe': {
+          list$1(base[key], extension[key]);
+          break
+        }
+
+        case 'join': {
+          list$1(base[key], extension[key]);
+          break
+        }
+
+        case 'handlers': {
+          map$2(base[key], extension[key]);
+          break
+        }
+
+        default: {
+          // @ts-expect-error: matches.
+          base.options[key] = extension[key];
+        }
+      }
     }
   }
 
@@ -2274,16 +3575,35 @@ function configure(base, extension) {
 }
 
 /**
- * @typedef {import('mdast').Blockquote} Blockquote
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
- * @typedef {import('../types.js').Map} Map
+ * @template T
+ * @param {Array<T>} left
+ * @param {Array<T> | null | undefined} right
+ */
+function list$1(left, right) {
+  if (right) {
+    left.push(...right);
+  }
+}
+
+/**
+ * @template T
+ * @param {Record<string, T>} left
+ * @param {Record<string, T> | null | undefined} right
+ */
+function map$2(left, right) {
+  if (right) {
+    Object.assign(left, right);
+  }
+}
+
+/**
+ * @import {Blockquote, Parents} from 'mdast'
+ * @import {Info, Map, State} from 'mdast-util-to-markdown'
  */
 
 /**
  * @param {Blockquote} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -2295,20 +3615,19 @@ function blockquote(node, _, state, info) {
   tracker.shift(2);
   const value = state.indentLines(
     state.containerFlow(node, tracker.current()),
-    map$2
+    map$1
   );
   exit();
   return value
 }
 
 /** @type {Map} */
-function map$2(line, _, blank) {
+function map$1(line, _, blank) {
   return '>' + (blank ? '' : ' ') + line
 }
 
 /**
- * @typedef {import('../types.js').Unsafe} Unsafe
- * @typedef {import('../types.js').ConstructName} ConstructName
+ * @import {ConstructName, Unsafe} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -2350,16 +3669,14 @@ function listInScope(stack, list, none) {
 }
 
 /**
- * @typedef {import('mdast').Break} Break
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Break, Parents} from 'mdast'
+ * @import {Info, State} from 'mdast-util-to-markdown'
  */
 
 
 /**
  * @param {Break} _
- * @param {Parent | undefined} _1
+ * @param {Parents | undefined} _1
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -2419,8 +3736,8 @@ function longestStreak(value, substring) {
 }
 
 /**
- * @typedef {import('mdast').Code} Code
- * @typedef {import('../types.js').State} State
+ * @import {State} from 'mdast-util-to-markdown'
+ * @import {Code} from 'mdast'
  */
 
 /**
@@ -2430,7 +3747,7 @@ function longestStreak(value, substring) {
  */
 function formatCodeAsIndented(node, state) {
   return Boolean(
-    !state.options.fences &&
+    state.options.fences === false &&
       node.value &&
       // If there’s no info…
       !node.lang &&
@@ -2442,8 +3759,7 @@ function formatCodeAsIndented(node, state) {
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -2465,17 +3781,14 @@ function checkFence(state) {
 }
 
 /**
- * @typedef {import('mdast').Code} Code
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
- * @typedef {import('../types.js').Map} Map
+ * @import {Info, Map, State} from 'mdast-util-to-markdown'
+ * @import {Code, Parents} from 'mdast'
  */
 
 
 /**
  * @param {Code} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -2487,7 +3800,7 @@ function code$1(node, _, state, info) {
 
   if (formatCodeAsIndented(node, state)) {
     const exit = state.enter('codeIndented');
-    const value = state.indentLines(raw, map$1);
+    const value = state.indentLines(raw, map);
     exit();
     return value
   }
@@ -2536,13 +3849,12 @@ function code$1(node, _, state, info) {
 }
 
 /** @type {Map} */
-function map$1(line, _, blank) {
+function map(line, _, blank) {
   return (blank ? '' : '    ') + line
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -2564,16 +3876,14 @@ function checkQuote(state) {
 }
 
 /**
- * @typedef {import('mdast').Definition} Definition
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {Definition, Parents} from 'mdast'
  */
 
 
 /**
  * @param {Definition} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -2642,8 +3952,7 @@ function definition(node, _, state, info) {
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -2665,22 +3974,313 @@ function checkEmphasis(state) {
 }
 
 /**
- * @typedef {import('mdast').Emphasis} Emphasis
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * Encode a code point as a character reference.
+ *
+ * @param {number} code
+ *   Code point to encode.
+ * @returns {string}
+ *   Encoded character reference.
+ */
+function encodeCharacterReference(code) {
+  return '&#x' + code.toString(16).toUpperCase() + ';'
+}
+
+/**
+ * @import {Code} from 'micromark-util-types'
+ */
+
+/**
+ * Check whether the character code represents an ASCII alpha (`a` through `z`,
+ * case insensitive).
+ *
+ * An **ASCII alpha** is an ASCII upper alpha or ASCII lower alpha.
+ *
+ * An **ASCII upper alpha** is a character in the inclusive range U+0041 (`A`)
+ * to U+005A (`Z`).
+ *
+ * An **ASCII lower alpha** is a character in the inclusive range U+0061 (`a`)
+ * to U+007A (`z`).
+ *
+ * @param code
+ *   Code.
+ * @returns {boolean}
+ *   Whether it matches.
+ */
+const asciiAlpha = regexCheck(/[A-Za-z]/);
+
+/**
+ * Check whether the character code represents an ASCII alphanumeric (`a`
+ * through `z`, case insensitive, or `0` through `9`).
+ *
+ * An **ASCII alphanumeric** is an ASCII digit (see `asciiDigit`) or ASCII alpha
+ * (see `asciiAlpha`).
+ *
+ * @param code
+ *   Code.
+ * @returns {boolean}
+ *   Whether it matches.
+ */
+const asciiAlphanumeric = regexCheck(/[\dA-Za-z]/);
+
+/**
+ * Check whether a character code is an ASCII control character.
+ *
+ * An **ASCII control** is a character in the inclusive range U+0000 NULL (NUL)
+ * to U+001F (US), or U+007F (DEL).
+ *
+ * @param {Code} code
+ *   Code.
+ * @returns {boolean}
+ *   Whether it matches.
+ */
+function asciiControl(code) {
+  return (
+    // Special whitespace codes (which have negative values), C0 and Control
+    // character DEL
+    code !== null && (code < 32 || code === 127)
+  );
+}
+
+/**
+ * Check whether a character code is a markdown line ending.
+ *
+ * A **markdown line ending** is the virtual characters M-0003 CARRIAGE RETURN
+ * LINE FEED (CRLF), M-0004 LINE FEED (LF) and M-0005 CARRIAGE RETURN (CR).
+ *
+ * In micromark, the actual character U+000A LINE FEED (LF) and U+000D CARRIAGE
+ * RETURN (CR) are replaced by these virtual characters depending on whether
+ * they occurred together.
+ *
+ * @param {Code} code
+ *   Code.
+ * @returns {boolean}
+ *   Whether it matches.
+ */
+function markdownLineEnding(code) {
+  return code !== null && code < -2;
+}
+
+/**
+ * Check whether a character code is a markdown line ending (see
+ * `markdownLineEnding`) or markdown space (see `markdownSpace`).
+ *
+ * @param {Code} code
+ *   Code.
+ * @returns {boolean}
+ *   Whether it matches.
+ */
+function markdownLineEndingOrSpace(code) {
+  return code !== null && (code < 0 || code === 32);
+}
+
+/**
+ * Check whether a character code is a markdown space.
+ *
+ * A **markdown space** is the concrete character U+0020 SPACE (SP) and the
+ * virtual characters M-0001 VIRTUAL SPACE (VS) and M-0002 HORIZONTAL TAB (HT).
+ *
+ * In micromark, the actual character U+0009 CHARACTER TABULATION (HT) is
+ * replaced by one M-0002 HORIZONTAL TAB (HT) and between 0 and 3 M-0001 VIRTUAL
+ * SPACE (VS) characters, depending on the column at which the tab occurred.
+ *
+ * @param {Code} code
+ *   Code.
+ * @returns {boolean}
+ *   Whether it matches.
+ */
+function markdownSpace(code) {
+  return code === -2 || code === -1 || code === 32;
+}
+
+// Size note: removing ASCII from the regex and using `asciiPunctuation` here
+// In fact adds to the bundle size.
+/**
+ * Check whether the character code represents Unicode punctuation.
+ *
+ * A **Unicode punctuation** is a character in the Unicode `Pc` (Punctuation,
+ * Connector), `Pd` (Punctuation, Dash), `Pe` (Punctuation, Close), `Pf`
+ * (Punctuation, Final quote), `Pi` (Punctuation, Initial quote), `Po`
+ * (Punctuation, Other), or `Ps` (Punctuation, Open) categories, or an ASCII
+ * punctuation (see `asciiPunctuation`).
+ *
+ * See:
+ * **\[UNICODE]**:
+ * [The Unicode Standard](https://www.unicode.org/versions/).
+ * Unicode Consortium.
+ *
+ * @param code
+ *   Code.
+ * @returns
+ *   Whether it matches.
+ */
+const unicodePunctuation = regexCheck(/\p{P}|\p{S}/u);
+
+/**
+ * Check whether the character code represents Unicode whitespace.
+ *
+ * Note that this does handle micromark specific markdown whitespace characters.
+ * See `markdownLineEndingOrSpace` to check that.
+ *
+ * A **Unicode whitespace** is a character in the Unicode `Zs` (Separator,
+ * Space) category, or U+0009 CHARACTER TABULATION (HT), U+000A LINE FEED (LF),
+ * U+000C (FF), or U+000D CARRIAGE RETURN (CR) (**\[UNICODE]**).
+ *
+ * See:
+ * **\[UNICODE]**:
+ * [The Unicode Standard](https://www.unicode.org/versions/).
+ * Unicode Consortium.
+ *
+ * @param code
+ *   Code.
+ * @returns
+ *   Whether it matches.
+ */
+const unicodeWhitespace = regexCheck(/\s/);
+
+/**
+ * Create a code check from a regex.
+ *
+ * @param {RegExp} regex
+ *   Expression.
+ * @returns {(code: Code) => boolean}
+ *   Check.
+ */
+function regexCheck(regex) {
+  return check;
+
+  /**
+   * Check whether a code matches the bound regex.
+   *
+   * @param {Code} code
+   *   Character code.
+   * @returns {boolean}
+   *   Whether the character code matches the bound regex.
+   */
+  function check(code) {
+    return code !== null && code > -1 && regex.test(String.fromCharCode(code));
+  }
+}
+
+/**
+ * @import {Code} from 'micromark-util-types'
+ */
+
+/**
+ * Classify whether a code represents whitespace, punctuation, or something
+ * else.
+ *
+ * Used for attention (emphasis, strong), whose sequences can open or close
+ * based on the class of surrounding characters.
+ *
+ * > 👉 **Note**: eof (`null`) is seen as whitespace.
+ *
+ * @param {Code} code
+ *   Code.
+ * @returns {typeof constants.characterGroupWhitespace | typeof constants.characterGroupPunctuation | undefined}
+ *   Group.
+ */
+function classifyCharacter(code) {
+  if (code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+    return 1;
+  }
+  if (unicodePunctuation(code)) {
+    return 2;
+  }
+}
+
+/**
+ * @import {EncodeSides} from '../types.js'
+ */
+
+
+/**
+ * Check whether to encode (as a character reference) the characters
+ * surrounding an attention run.
+ *
+ * Which characters are around an attention run influence whether it works or
+ * not.
+ *
+ * See <https://github.com/orgs/syntax-tree/discussions/60> for more info.
+ * See this markdown in a particular renderer to see what works:
+ *
+ * ```markdown
+ * |                         | A (letter inside) | B (punctuation inside) | C (whitespace inside) | D (nothing inside) |
+ * | ----------------------- | ----------------- | ---------------------- | --------------------- | ------------------ |
+ * | 1 (letter outside)      | x*y*z             | x*.*z                  | x* *z                 | x**z               |
+ * | 2 (punctuation outside) | .*y*.             | .*.*.                  | .* *.                 | .**.               |
+ * | 3 (whitespace outside)  | x *y* z           | x *.* z                | x * * z               | x ** z             |
+ * | 4 (nothing outside)     | *x*               | *.*                    | * *                   | **                 |
+ * ```
+ *
+ * @param {number} outside
+ *   Code point on the outer side of the run.
+ * @param {number} inside
+ *   Code point on the inner side of the run.
+ * @param {'*' | '_'} marker
+ *   Marker of the run.
+ *   Underscores are handled more strictly (they form less often) than
+ *   asterisks.
+ * @returns {EncodeSides}
+ *   Whether to encode characters.
+ */
+// Important: punctuation must never be encoded.
+// Punctuation is solely used by markdown constructs.
+// And by encoding itself.
+// Encoding them will break constructs or double encode things.
+function encodeInfo(outside, inside, marker) {
+  const outsideKind = classifyCharacter(outside);
+  const insideKind = classifyCharacter(inside);
+
+  // Letter outside:
+  if (outsideKind === undefined) {
+    return insideKind === undefined
+      ? // Letter inside:
+        // we have to encode *both* letters for `_` as it is looser.
+        // it already forms for `*` (and GFMs `~`).
+        marker === '_'
+        ? {inside: true, outside: true}
+        : {inside: false, outside: false}
+      : insideKind === 1
+        ? // Whitespace inside: encode both (letter, whitespace).
+          {inside: true, outside: true}
+        : // Punctuation inside: encode outer (letter)
+          {inside: false, outside: true}
+  }
+
+  // Whitespace outside:
+  if (outsideKind === 1) {
+    return insideKind === undefined
+      ? // Letter inside: already forms.
+        {inside: false, outside: false}
+      : insideKind === 1
+        ? // Whitespace inside: encode both (whitespace).
+          {inside: true, outside: true}
+        : // Punctuation inside: already forms.
+          {inside: false, outside: false}
+  }
+
+  // Punctuation outside:
+  return insideKind === undefined
+    ? // Letter inside: already forms.
+      {inside: false, outside: false}
+    : insideKind === 1
+      ? // Whitespace inside: encode inner (whitespace).
+        {inside: true, outside: false}
+      : // Punctuation inside: already forms.
+        {inside: false, outside: false}
+}
+
+/**
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {Emphasis, Parents} from 'mdast'
  */
 
 
 emphasis.peek = emphasisPeek;
 
-// To do: there are cases where emphasis cannot “form” depending on the
-// previous or next character of sequences.
-// There’s no way around that though, except for injecting zero-width stuff.
-// Do we need to safeguard against that?
 /**
  * @param {Emphasis} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -2689,22 +4289,47 @@ function emphasis(node, _, state, info) {
   const marker = checkEmphasis(state);
   const exit = state.enter('emphasis');
   const tracker = state.createTracker(info);
-  let value = tracker.move(marker);
-  value += tracker.move(
+  const before = tracker.move(marker);
+
+  let between = tracker.move(
     state.containerPhrasing(node, {
-      before: value,
       after: marker,
+      before,
       ...tracker.current()
     })
   );
-  value += tracker.move(marker);
+  const betweenHead = between.charCodeAt(0);
+  const open = encodeInfo(
+    info.before.charCodeAt(info.before.length - 1),
+    betweenHead,
+    marker
+  );
+
+  if (open.inside) {
+    between = encodeCharacterReference(betweenHead) + between.slice(1);
+  }
+
+  const betweenTail = between.charCodeAt(between.length - 1);
+  const close = encodeInfo(info.after.charCodeAt(0), betweenTail, marker);
+
+  if (close.inside) {
+    between = between.slice(0, -1) + encodeCharacterReference(betweenTail);
+  }
+
+  const after = tracker.move(marker);
+
   exit();
-  return value
+
+  state.attentionEncodeSurroundingInfo = {
+    after: close.outside,
+    before: open.outside
+  };
+  return before + between + after
 }
 
 /**
  * @param {Emphasis} _
- * @param {Parent | undefined} _1
+ * @param {Parents | undefined} _1
  * @param {State} state
  * @returns {string}
  */
@@ -2713,13 +4338,18 @@ function emphasisPeek(_, _1, state) {
 }
 
 /**
- * @typedef {import('mdast').Root|import('mdast').Content} Node
+ * @typedef {import('mdast').Nodes} Nodes
  *
  * @typedef Options
  *   Configuration (optional).
  * @property {boolean | null | undefined} [includeImageAlt=true]
- *   Whether to use `alt` for `image`s.
+ *   Whether to use `alt` for `image`s (default: `true`).
+ * @property {boolean | null | undefined} [includeHtml=true]
+ *   Whether to use `value` of HTML (default: `true`).
  */
+
+/** @type {Options} */
+const emptyOptions$1 = {};
 
 /**
  * Get the text content of a node or list of nodes.
@@ -2727,7 +4357,7 @@ function emphasisPeek(_, _1, state) {
  * Prefers the node’s plain-text fields, otherwise serializes its children,
  * and if the given value is an array, serialize the nodes in it.
  *
- * @param {unknown} value
+ * @param {unknown} [value]
  *   Thing to serialize, typically `Node`.
  * @param {Options | null | undefined} [options]
  *   Configuration (optional).
@@ -2735,11 +4365,15 @@ function emphasisPeek(_, _1, state) {
  *   Serialized `value`.
  */
 function toString(value, options) {
-  const includeImageAlt = (options || {}).includeImageAlt;
-  return one(
-    value,
-    typeof includeImageAlt === 'boolean' ? includeImageAlt : true
-  )
+  const settings = emptyOptions$1;
+  const includeImageAlt =
+    typeof settings.includeImageAlt === 'boolean'
+      ? settings.includeImageAlt
+      : true;
+  const includeHtml =
+    typeof settings.includeHtml === 'boolean' ? settings.includeHtml : true;
+
+  return one(value, includeImageAlt, includeHtml)
 }
 
 /**
@@ -2749,18 +4383,31 @@ function toString(value, options) {
  *   Thing to serialize.
  * @param {boolean} includeImageAlt
  *   Include image `alt`s.
+ * @param {boolean} includeHtml
+ *   Include HTML.
  * @returns {string}
  *   Serialized node.
  */
-function one(value, includeImageAlt) {
-  return (
-    (node(value) &&
-      (('value' in value && value.value) ||
-        (includeImageAlt && 'alt' in value && value.alt) ||
-        ('children' in value && all(value.children, includeImageAlt)))) ||
-    (Array.isArray(value) && all(value, includeImageAlt)) ||
-    ''
-  )
+function one(value, includeImageAlt, includeHtml) {
+  if (node(value)) {
+    if ('value' in value) {
+      return value.type === 'html' && !includeHtml ? '' : value.value
+    }
+
+    if (includeImageAlt && 'alt' in value && value.alt) {
+      return value.alt
+    }
+
+    if ('children' in value) {
+      return all(value.children, includeImageAlt, includeHtml)
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return all(value, includeImageAlt, includeHtml)
+  }
+
+  return ''
 }
 
 /**
@@ -2770,16 +4417,18 @@ function one(value, includeImageAlt) {
  *   Thing to serialize.
  * @param {boolean} includeImageAlt
  *   Include image `alt`s.
+ * @param {boolean} includeHtml
+ *   Include HTML.
  * @returns {string}
  *   Serialized nodes.
  */
-function all(values, includeImageAlt) {
+function all(values, includeImageAlt, includeHtml) {
   /** @type {Array<string>} */
   const result = [];
   let index = -1;
 
   while (++index < values.length) {
-    result[index] = one(values[index], includeImageAlt);
+    result[index] = one(values[index], includeImageAlt, includeHtml);
   }
 
   return result.join('')
@@ -2790,7 +4439,7 @@ function all(values, includeImageAlt) {
  *
  * @param {unknown} value
  *   Thing.
- * @returns {value is Node}
+ * @returns {value is Nodes}
  *   Whether `value` is a node.
  */
 function node(value) {
@@ -2798,8 +4447,8 @@ function node(value) {
 }
 
 /**
- * @typedef {import('mdast').Heading} Heading
- * @typedef {import('../types.js').State} State
+ * @import {State} from 'mdast-util-to-markdown'
+ * @import {Heading} from 'mdast'
  */
 
 
@@ -2813,7 +4462,7 @@ function formatHeadingAsSetext(node, state) {
 
   // Look for literals with a line break.
   // Note that this also
-  visit(node, (node) => {
+  visit(node, function (node) {
     if (
       ('value' in node && /\r?\n|\r/.test(node.value)) ||
       node.type === 'break'
@@ -2831,16 +4480,14 @@ function formatHeadingAsSetext(node, state) {
 }
 
 /**
- * @typedef {import('mdast').Heading} Heading
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {Heading, Parents} from 'mdast'
  */
 
 
 /**
  * @param {Heading} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -2891,11 +4538,7 @@ function heading(node, _, state, info) {
 
   if (/^[\t ]/.test(value)) {
     // To do: what effect has the character reference on tracking?
-    value =
-      '&#x' +
-      value.charCodeAt(0).toString(16).toUpperCase() +
-      ';' +
-      value.slice(1);
+    value = encodeCharacterReference(value.charCodeAt(0)) + value.slice(1);
   }
 
   value = value ? sequence + ' ' + value : sequence;
@@ -2911,13 +4554,13 @@ function heading(node, _, state, info) {
 }
 
 /**
- * @typedef {import('mdast').HTML} HTML
+ * @import {Html} from 'mdast'
  */
 
 html.peek = htmlPeek;
 
 /**
- * @param {HTML} node
+ * @param {Html} node
  * @returns {string}
  */
 function html(node) {
@@ -2932,10 +4575,8 @@ function htmlPeek() {
 }
 
 /**
- * @typedef {import('mdast').Image} Image
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {Image, Parents} from 'mdast'
  */
 
 
@@ -2943,7 +4584,7 @@ image.peek = imagePeek;
 
 /**
  * @param {Image} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -3016,17 +4657,15 @@ function imagePeek() {
 }
 
 /**
- * @typedef {import('mdast').ImageReference} ImageReference
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {ImageReference, Parents} from 'mdast'
  */
 
 imageReference.peek = imageReferencePeek;
 
 /**
  * @param {ImageReference} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -3082,43 +4721,15 @@ function imageReferencePeek() {
 }
 
 /**
- * @typedef {import('../types.js').Unsafe} Unsafe
+ * @import {State} from 'mdast-util-to-markdown'
+ * @import {InlineCode, Parents} from 'mdast'
  */
-
-/**
- * @param {Unsafe} pattern
- * @returns {RegExp}
- */
-function patternCompile(pattern) {
-  if (!pattern._compiled) {
-    const before =
-      (pattern.atBreak ? '[\\r\\n][\\t ]*' : '') +
-      (pattern.before ? '(?:' + pattern.before + ')' : '');
-
-    pattern._compiled = new RegExp(
-      (before ? '(' + before + ')' : '') +
-        (/[|\\{}()[\]^$+*?.-]/.test(pattern.character) ? '\\' : '') +
-        pattern.character +
-        (pattern.after ? '(?:' + pattern.after + ')' : ''),
-      'g'
-    );
-  }
-
-  return pattern._compiled
-}
-
-/**
- * @typedef {import('mdast').InlineCode} InlineCode
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- */
-
 
 inlineCode.peek = inlineCodePeek;
 
 /**
  * @param {InlineCode} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @returns {string}
  */
@@ -3152,7 +4763,7 @@ function inlineCode(node, _, state) {
   // them out.
   while (++index < state.unsafe.length) {
     const pattern = state.unsafe[index];
-    const expression = patternCompile(pattern);
+    const expression = state.compilePattern(pattern);
     /** @type {RegExpExecArray | null} */
     let match;
 
@@ -3187,8 +4798,8 @@ function inlineCodePeek() {
 }
 
 /**
- * @typedef {import('mdast').Link} Link
- * @typedef {import('../types.js').State} State
+ * @import {State} from 'mdast-util-to-markdown'
+ * @import {Link} from 'mdast'
  */
 
 
@@ -3221,11 +4832,9 @@ function formatLinkAsAutolink(node, state) {
 }
 
 /**
- * @typedef {import('mdast').Link} Link
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
- * @typedef {import('../types.js').Exit} Exit
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {Link, Parents} from 'mdast'
+ * @import {Exit} from '../types.js'
  */
 
 
@@ -3233,7 +4842,7 @@ link.peek = linkPeek;
 
 /**
  * @param {Link} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -3327,7 +4936,7 @@ function link(node, _, state, info) {
 
 /**
  * @param {Link} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @returns {string}
  */
@@ -3336,17 +4945,15 @@ function linkPeek(node, _, state) {
 }
 
 /**
- * @typedef {import('mdast').LinkReference} LinkReference
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {LinkReference, Parents} from 'mdast'
  */
 
 linkReference.peek = linkReferencePeek;
 
 /**
  * @param {LinkReference} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -3402,8 +5009,7 @@ function linkReferencePeek() {
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -3425,8 +5031,7 @@ function checkBullet(state) {
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 
@@ -3464,8 +5069,7 @@ function checkBulletOther(state) {
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -3487,47 +5091,7 @@ function checkBulletOrdered(state) {
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
- */
-
-
-/**
- * @param {State} state
- * @returns {Exclude<Options['bulletOrdered'], null | undefined>}
- */
-function checkBulletOrderedOther(state) {
-  const bulletOrdered = checkBulletOrdered(state);
-  const bulletOrderedOther = state.options.bulletOrderedOther;
-
-  if (!bulletOrderedOther) {
-    return bulletOrdered === '.' ? ')' : '.'
-  }
-
-  if (bulletOrderedOther !== '.' && bulletOrderedOther !== ')') {
-    throw new Error(
-      'Cannot serialize items with `' +
-        bulletOrderedOther +
-        '` for `options.bulletOrderedOther`, expected `*`, `+`, or `-`'
-    )
-  }
-
-  if (bulletOrderedOther === bulletOrdered) {
-    throw new Error(
-      'Expected `bulletOrdered` (`' +
-        bulletOrdered +
-        '`) and `bulletOrderedOther` (`' +
-        bulletOrderedOther +
-        '`) to be different'
-    )
-  }
-
-  return bulletOrderedOther
-}
-
-/**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -3549,16 +5113,14 @@ function checkRule(state) {
 }
 
 /**
- * @typedef {import('mdast').List} List
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {List, Parents} from 'mdast'
  */
 
 
 /**
  * @param {List} node
- * @param {Parent | undefined} parent
+ * @param {Parents | undefined} parent
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -3570,22 +5132,12 @@ function list(node, parent, state, info) {
   let bullet = node.ordered ? checkBulletOrdered(state) : checkBullet(state);
   /** @type {string} */
   const bulletOther = node.ordered
-    ? checkBulletOrderedOther(state)
+    ? bullet === '.'
+      ? ')'
+      : '.'
     : checkBulletOther(state);
-  const bulletLastUsed = state.bulletLastUsed;
-  let useDifferentMarker = false;
-
-  if (
-    parent &&
-    // Explicit `other` set.
-    (node.ordered
-      ? state.options.bulletOrderedOther
-      : state.options.bulletOther) &&
-    bulletLastUsed &&
-    bullet === bulletLastUsed
-  ) {
-    useDifferentMarker = true;
-  }
+  let useDifferentMarker =
+    parent && state.bulletLastUsed ? bullet === state.bulletLastUsed : false;
 
   if (!node.ordered) {
     const firstListItem = node.children ? node.children[0] : undefined;
@@ -3658,8 +5210,7 @@ function list(node, parent, state, info) {
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -3667,13 +5218,7 @@ function list(node, parent, state, info) {
  * @returns {Exclude<Options['listItemIndent'], null | undefined>}
  */
 function checkListItemIndent(state) {
-  const style = state.options.listItemIndent || 'tab';
-
-  // To do: remove in a major.
-  // @ts-expect-error: deprecated.
-  if (style === 1 || style === '1') {
-    return 'one'
-  }
+  const style = state.options.listItemIndent || 'one';
 
   if (style !== 'tab' && style !== 'one' && style !== 'mixed') {
     throw new Error(
@@ -3687,17 +5232,14 @@ function checkListItemIndent(state) {
 }
 
 /**
- * @typedef {import('mdast').ListItem} ListItem
- * @typedef {import('../types.js').Map} Map
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, Map, State} from 'mdast-util-to-markdown'
+ * @import {ListItem, Parents} from 'mdast'
  */
 
 
 /**
  * @param {ListItem} node
- * @param {Parent | undefined} parent
+ * @param {Parents | undefined} parent
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -3751,15 +5293,13 @@ function listItem(node, parent, state, info) {
 }
 
 /**
- * @typedef {import('mdast').Paragraph} Paragraph
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {Paragraph, Parents} from 'mdast'
  */
 
 /**
  * @param {Paragraph} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -3774,62 +5314,75 @@ function paragraph(node, _, state, info) {
 }
 
 /**
+ * @typedef {import('mdast').Html} Html
  * @typedef {import('mdast').PhrasingContent} PhrasingContent
- * @typedef {import('unist-util-is').AssertPredicate<PhrasingContent>} AssertPredicatePhrasing
  */
 
 
 /**
  * Check if the given value is *phrasing content*.
  *
- * @param
+ * > 👉 **Note**: Excludes `html`, which can be both phrasing or flow.
+ *
+ * @param node
  *   Thing to check, typically `Node`.
  * @returns
  *   Whether `value` is phrasing content.
  */
-const phrasing = /** @type {AssertPredicatePhrasing} */ (
-  convert([
-    'break',
-    'delete',
-    'emphasis',
-    'footnote',
-    'footnoteReference',
-    'image',
-    'imageReference',
-    'inlineCode',
-    'link',
-    'linkReference',
-    'strong',
-    'text'
-  ])
-);
+
+const phrasing =
+  /** @type {(node?: unknown) => node is Exclude<PhrasingContent, Html>} */
+  (
+    convert([
+      'break',
+      'delete',
+      'emphasis',
+      // To do: next major: removed since footnotes were added to GFM.
+      'footnote',
+      'footnoteReference',
+      'image',
+      'imageReference',
+      'inlineCode',
+      // Enabled by `mdast-util-math`:
+      'inlineMath',
+      'link',
+      'linkReference',
+      // Enabled by `mdast-util-mdx`:
+      'mdxJsxTextElement',
+      // Enabled by `mdast-util-mdx`:
+      'mdxTextExpression',
+      'strong',
+      'text',
+      // Enabled by `mdast-util-directive`:
+      'textDirective'
+    ])
+  );
 
 /**
- * @typedef {import('mdast').Root} Root
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {Parents, Root} from 'mdast'
  */
 
 
 /**
  * @param {Root} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
  */
 function root(node, _, state, info) {
   // Note: `html` nodes are ambiguous.
-  const hasPhrasing = node.children.some((d) => phrasing(d));
-  const fn = hasPhrasing ? state.containerPhrasing : state.containerFlow;
-  // @ts-expect-error: `root`s are supposed to have one type of content
-  return fn.call(state, node, info)
+  const hasPhrasing = node.children.some(function (d) {
+    return phrasing(d)
+  });
+
+  const container = hasPhrasing ? state.containerPhrasing : state.containerFlow;
+  return container.call(state, node, info)
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -3851,22 +5404,16 @@ function checkStrong(state) {
 }
 
 /**
- * @typedef {import('mdast').Strong} Strong
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {Parents, Strong} from 'mdast'
  */
 
 
 strong.peek = strongPeek;
 
-// To do: there are cases where emphasis cannot “form” depending on the
-// previous or next character of sequences.
-// There’s no way around that though, except for injecting zero-width stuff.
-// Do we need to safeguard against that?
 /**
  * @param {Strong} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -3875,22 +5422,47 @@ function strong(node, _, state, info) {
   const marker = checkStrong(state);
   const exit = state.enter('strong');
   const tracker = state.createTracker(info);
-  let value = tracker.move(marker + marker);
-  value += tracker.move(
+  const before = tracker.move(marker + marker);
+
+  let between = tracker.move(
     state.containerPhrasing(node, {
-      before: value,
       after: marker,
+      before,
       ...tracker.current()
     })
   );
-  value += tracker.move(marker + marker);
+  const betweenHead = between.charCodeAt(0);
+  const open = encodeInfo(
+    info.before.charCodeAt(info.before.length - 1),
+    betweenHead,
+    marker
+  );
+
+  if (open.inside) {
+    between = encodeCharacterReference(betweenHead) + between.slice(1);
+  }
+
+  const betweenTail = between.charCodeAt(between.length - 1);
+  const close = encodeInfo(info.after.charCodeAt(0), betweenTail, marker);
+
+  if (close.inside) {
+    between = between.slice(0, -1) + encodeCharacterReference(betweenTail);
+  }
+
+  const after = tracker.move(marker + marker);
+
   exit();
-  return value
+
+  state.attentionEncodeSurroundingInfo = {
+    after: close.outside,
+    before: open.outside
+  };
+  return before + between + after
 }
 
 /**
  * @param {Strong} _
- * @param {Parent | undefined} _1
+ * @param {Parents | undefined} _1
  * @param {State} state
  * @returns {string}
  */
@@ -3899,15 +5471,13 @@ function strongPeek(_, _1, state) {
 }
 
 /**
- * @typedef {import('mdast').Text} Text
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Info} Info
+ * @import {Info, State} from 'mdast-util-to-markdown'
+ * @import {Parents, Text} from 'mdast'
  */
 
 /**
  * @param {Text} node
- * @param {Parent | undefined} _
+ * @param {Parents | undefined} _
  * @param {State} state
  * @param {Info} info
  * @returns {string}
@@ -3917,8 +5487,7 @@ function text$1(node, _, state, info) {
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').Options} Options
+ * @import {Options, State} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -3940,15 +5509,14 @@ function checkRuleRepetition(state) {
 }
 
 /**
- * @typedef {import('mdast').ThematicBreak} ThematicBreak
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
+ * @import {State} from 'mdast-util-to-markdown'
+ * @import {Parents, ThematicBreak} from 'mdast'
  */
 
 
 /**
  * @param {ThematicBreak} _
- * @param {Parent | undefined} _1
+ * @param {Parents | undefined} _1
  * @param {State} state
  * @returns {string}
  */
@@ -3987,7 +5555,7 @@ const handle = {
 };
 
 /**
- * @typedef {import('./types.js').Join} Join
+ * @import {Join} from 'mdast-util-to-markdown'
  */
 
 
@@ -4002,18 +5570,6 @@ function joinDefaults(left, right, parent, state) {
     formatCodeAsIndented(right, state) &&
     (left.type === 'list' ||
       (left.type === right.type && formatCodeAsIndented(left, state)))
-  ) {
-    return false
-  }
-
-  // Two lists with the same marker.
-  if (
-    left.type === 'list' &&
-    left.type === right.type &&
-    Boolean(left.ordered) === Boolean(right.ordered) &&
-    !(left.ordered
-      ? state.options.bulletOrderedOther
-      : state.options.bulletOther)
   ) {
     return false
   }
@@ -4037,8 +5593,7 @@ function joinDefaults(left, right, parent, state) {
 }
 
 /**
- * @typedef {import('./types.js').Unsafe} Unsafe
- * @typedef {import('./types.js').ConstructName} ConstructName
+ * @import {ConstructName, Unsafe} from 'mdast-util-to-markdown'
  */
 
 /**
@@ -6317,7 +7872,7 @@ const characterEntities = {
   zwnj: '‌'
 };
 
-const own$1 = {}.hasOwnProperty;
+const own = {}.hasOwnProperty;
 
 /**
  * Decode a single character reference (without the `&` or `;`).
@@ -6331,81 +7886,88 @@ const own$1 = {}.hasOwnProperty;
  *   Decoded reference.
  */
 function decodeNamedCharacterReference(value) {
-  return own$1.call(characterEntities, value) ? characterEntities[value] : false
+  return own.call(characterEntities, value) ? characterEntities[value] : false
 }
 
 /**
  * Turn the number (in string form as either hexa- or plain decimal) coming from
  * a numeric character reference into a character.
  *
+ * Sort of like `String.fromCodePoint(Number.parseInt(value, base))`, but makes
+ * non-characters and control characters safe.
+ *
  * @param {string} value
  *   Value to decode.
  * @param {number} base
  *   Numeric base.
  * @returns {string}
+ *   Character.
  */
 function decodeNumericCharacterReference(value, base) {
   const code = Number.parseInt(value, base);
-
   if (
-    // C0 except for HT, LF, FF, CR, space
-    code < 9 ||
-    code === 11 ||
-    (code > 13 && code < 32) || // Control character (DEL) of the basic block and C1 controls.
-    (code > 126 && code < 160) || // Lone high surrogates and low surrogates.
-    (code > 55295 && code < 57344) || // Noncharacters.
-    (code > 64975 && code < 65008) ||
-    (code & 65535) === 65535 ||
-    (code & 65535) === 65534 || // Out of range
-    code > 1114111
-  ) {
-    return '\uFFFD'
+  // C0 except for HT, LF, FF, CR, space.
+  code < 9 || code === 11 || code > 13 && code < 32 ||
+  // Control character (DEL) of C0, and C1 controls.
+  code > 126 && code < 160 ||
+  // Lone high surrogates and low surrogates.
+  code > 55_295 && code < 57_344 ||
+  // Noncharacters.
+  code > 64_975 && code < 65_008 || /* eslint-disable no-bitwise */
+  (code & 65_535) === 65_535 || (code & 65_535) === 65_534 || /* eslint-enable no-bitwise */
+  // Out of range
+  code > 1_114_111) {
+    return "\uFFFD";
   }
-
-  return String.fromCharCode(code)
+  return String.fromCodePoint(code);
 }
 
-const characterEscapeOrReference =
-  /\\([!-/:-@[-`{-~])|&(#(?:\d{1,7}|x[\da-f]{1,6})|[\da-z]{1,31});/gi;
+const characterEscapeOrReference = /\\([!-/:-@[-`{-~])|&(#(?:\d{1,7}|x[\da-f]{1,6})|[\da-z]{1,31});/gi;
+
 /**
- * Utility to decode markdown strings (which occur in places such as fenced
- * code info strings, destinations, labels, and titles).
+ * Decode markdown strings (which occur in places such as fenced code info
+ * strings, destinations, labels, and titles).
+ *
  * The “string” content type allows character escapes and -references.
  * This decodes those.
  *
  * @param {string} value
+ *   Value to decode.
  * @returns {string}
+ *   Decoded value.
  */
-
 function decodeString(value) {
-  return value.replace(characterEscapeOrReference, decode)
+  return value.replace(characterEscapeOrReference, decode);
 }
+
 /**
  * @param {string} $0
+ *   Match.
  * @param {string} $1
+ *   Character escape.
  * @param {string} $2
+ *   Character reference.
  * @returns {string}
+ *   Decoded value
  */
-
 function decode($0, $1, $2) {
   if ($1) {
     // Escape.
-    return $1
-  } // Reference.
+    return $1;
+  }
 
+  // Reference.
   const head = $2.charCodeAt(0);
-
   if (head === 35) {
     const head = $2.charCodeAt(1);
     const hex = head === 120 || head === 88;
-    return decodeNumericCharacterReference($2.slice(hex ? 2 : 1), hex ? 16 : 10)
+    return decodeNumericCharacterReference($2.slice(hex ? 2 : 1), hex ? 16 : 10);
   }
-
-  return decodeNamedCharacterReference($2) || $0
+  return decodeNamedCharacterReference($2) || $0;
 }
 
 /**
- * @typedef {import('../types.js').AssociationId} AssociationId
+ * @import {AssociationId} from '../types.js'
  */
 
 
@@ -6438,19 +8000,42 @@ function association(node) {
 }
 
 /**
- * @typedef {import('../types.js').Handle} Handle
- * @typedef {import('../types.js').Info} Info
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').PhrasingContent} PhrasingContent
- * @typedef {import('../types.js').State} State
+ * @import {CompilePattern} from '../types.js'
  */
+
+/**
+ * @type {CompilePattern}
+ */
+function compilePattern(pattern) {
+  if (!pattern._compiled) {
+    const before =
+      (pattern.atBreak ? '[\\r\\n][\\t ]*' : '') +
+      (pattern.before ? '(?:' + pattern.before + ')' : '');
+
+    pattern._compiled = new RegExp(
+      (before ? '(' + before + ')' : '') +
+        (/[|\\{}()[\]^$+*?.-]/.test(pattern.character) ? '\\' : '') +
+        pattern.character +
+        (pattern.after ? '(?:' + pattern.after + ')' : ''),
+      'g'
+    );
+  }
+
+  return pattern._compiled
+}
+
+/**
+ * @import {Handle, Info, State} from 'mdast-util-to-markdown'
+ * @import {PhrasingParents} from '../types.js'
+ */
+
 
 /**
  * Serialize the children of a parent that contains phrasing children.
  *
  * These children will be joined flush together.
  *
- * @param {Parent & {children: Array<PhrasingContent>}} parent
+ * @param {PhrasingParents} parent
  *   Parent of flow nodes.
  * @param {State} state
  *   Info passed around about the current state.
@@ -6466,6 +8051,8 @@ function containerPhrasing(parent, state, info) {
   const results = [];
   let index = -1;
   let before = info.before;
+  /** @type {string | undefined} */
+  let encodeAfter;
 
   indexStack.push(-1);
   let tracker = state.createTracker(info);
@@ -6517,17 +8104,44 @@ function containerPhrasing(parent, state, info) {
       tracker.move(results.join(''));
     }
 
-    results.push(
-      tracker.move(
-        state.handle(child, parent, state, {
-          ...tracker.current(),
-          before,
-          after
-        })
-      )
-    );
+    let value = state.handle(child, parent, state, {
+      ...tracker.current(),
+      after,
+      before
+    });
 
-    before = results[results.length - 1].slice(-1);
+    // If we had to encode the first character after the previous node and it’s
+    // still the same character,
+    // encode it.
+    if (encodeAfter && encodeAfter === value.slice(0, 1)) {
+      value =
+        encodeCharacterReference(encodeAfter.charCodeAt(0)) + value.slice(1);
+    }
+
+    const encodingInfo = state.attentionEncodeSurroundingInfo;
+    state.attentionEncodeSurroundingInfo = undefined;
+    encodeAfter = undefined;
+
+    // If we have to encode the first character before the current node and
+    // it’s still the same character,
+    // encode it.
+    if (encodingInfo) {
+      if (
+        results.length > 0 &&
+        encodingInfo.before &&
+        before === results[results.length - 1].slice(-1)
+      ) {
+        results[results.length - 1] =
+          results[results.length - 1].slice(0, -1) +
+          encodeCharacterReference(before.charCodeAt(0));
+      }
+
+      if (encodingInfo.after) encodeAfter = after;
+    }
+
+    tracker.move(value);
+    results.push(value);
+    before = value.slice(-1);
   }
 
   indexStack.pop();
@@ -6536,15 +8150,12 @@ function containerPhrasing(parent, state, info) {
 }
 
 /**
- * @typedef {import('../types.js').FlowContent} FlowContent
- * @typedef {import('../types.js').Node} Node
- * @typedef {import('../types.js').Parent} Parent
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').TrackFields} TrackFields
+ * @import {State} from 'mdast-util-to-markdown'
+ * @import {FlowChildren, FlowParents, TrackFields} from '../types.js'
  */
 
 /**
- * @param {Parent & {children: Array<FlowContent>}} parent
+ * @param {FlowParents} parent
  *   Parent of flow nodes.
  * @param {State} state
  *   Info passed around about the current state.
@@ -6595,9 +8206,9 @@ function containerFlow(parent, state, info) {
 }
 
 /**
- * @param {Node} left
- * @param {Node} right
- * @param {Parent} parent
+ * @param {FlowChildren} left
+ * @param {FlowChildren} right
+ * @param {FlowParents} parent
  * @param {State} state
  * @returns {string}
  */
@@ -6624,7 +8235,7 @@ function between(left, right, parent, state) {
 }
 
 /**
- * @typedef {import('../types.js').IndentLines} IndentLines
+ * @import {IndentLines} from '../types.js'
  */
 
 const eol = /\r?\n|\r/g;
@@ -6660,8 +8271,7 @@ function indentLines(value, map) {
 }
 
 /**
- * @typedef {import('../types.js').State} State
- * @typedef {import('../types.js').SafeConfig} SafeConfig
+ * @import {SafeConfig, State} from 'mdast-util-to-markdown'
  */
 
 
@@ -6707,7 +8317,7 @@ function safe(state, input, config) {
       continue
     }
 
-    const expression = patternCompile(pattern);
+    const expression = state.compilePattern(pattern);
     /** @type {RegExpExecArray | null} */
     let match;
 
@@ -6779,9 +8389,7 @@ function safe(state, input, config) {
       result.push('\\');
     } else {
       // Character reference.
-      result.push(
-        '&#x' + value.charCodeAt(position).toString(16).toUpperCase() + ';'
-      );
+      result.push(encodeCharacterReference(value.charCodeAt(position)));
       start++;
     }
   }
@@ -6836,10 +8444,7 @@ function escapeBackslashes(value, after) {
 }
 
 /**
- * @typedef {import('../types.js').CreateTracker} CreateTracker
- * @typedef {import('../types.js').TrackCurrent} TrackCurrent
- * @typedef {import('../types.js').TrackMove} TrackMove
- * @typedef {import('../types.js').TrackShift} TrackShift
+ * @import {CreateTracker, TrackCurrent, TrackMove, TrackShift} from '../types.js'
  */
 
 /**
@@ -6895,56 +8500,50 @@ function track(config) {
 }
 
 /**
- * @typedef {import('./types.js').Enter} Enter
- * @typedef {import('./types.js').Info} Info
- * @typedef {import('./types.js').Join} Join
- * @typedef {import('./types.js').FlowContent} FlowContent
- * @typedef {import('./types.js').Node} Node
- * @typedef {import('./types.js').Options} Options
- * @typedef {import('./types.js').Parent} Parent
- * @typedef {import('./types.js').PhrasingContent} PhrasingContent
- * @typedef {import('./types.js').SafeConfig} SafeConfig
- * @typedef {import('./types.js').State} State
- * @typedef {import('./types.js').TrackFields} TrackFields
+ * @import {Info, Join, Options, SafeConfig, State} from 'mdast-util-to-markdown'
+ * @import {Nodes} from 'mdast'
+ * @import {Enter, FlowParents, PhrasingParents, TrackFields} from './types.js'
  */
 
 
 /**
  * Turn an mdast syntax tree into markdown.
  *
- * @param {Node} tree
+ * @param {Nodes} tree
  *   Tree to serialize.
- * @param {Options} [options]
+ * @param {Options | null | undefined} [options]
  *   Configuration (optional).
  * @returns {string}
  *   Serialized markdown representing `tree`.
  */
-function toMarkdown(tree, options = {}) {
+function toMarkdown(tree, options) {
+  const settings = options || {};
   /** @type {State} */
   const state = {
-    enter,
-    indentLines,
     associationId: association,
     containerPhrasing: containerPhrasingBound,
     containerFlow: containerFlowBound,
     createTracker: track,
+    compilePattern,
+    enter,
+    // @ts-expect-error: GFM / frontmatter are typed in `mdast` but not defined
+    // here.
+    handlers: {...handle},
+    // @ts-expect-error: add `handle` in a second.
+    handle: undefined,
+    indentLines,
+    indexStack: [],
+    join: [...join],
+    options: {},
     safe: safeBound,
     stack: [],
-    unsafe: [],
-    join: [],
-    // @ts-expect-error: we’ll fill it next.
-    handlers: {},
-    options: {},
-    indexStack: [],
-    // @ts-expect-error: we’ll add `handle` later.
-    handle: undefined
+    unsafe: [...unsafe]
   };
 
-  configure(state, {unsafe, join, handlers: handle});
-  configure(state, options);
+  configure(state, settings);
 
   if (state.options.tightDefinitions) {
-    configure(state, {join: [joinDefinition]});
+    state.join.push(joinDefinition);
   }
 
   state.handle = zwitch('type', {
@@ -6975,6 +8574,9 @@ function toMarkdown(tree, options = {}) {
     state.stack.push(name);
     return exit
 
+    /**
+     * @returns {undefined}
+     */
     function exit() {
       state.stack.pop();
     }
@@ -6990,11 +8592,12 @@ function invalid(value) {
 }
 
 /**
- * @param {unknown} node
+ * @param {unknown} value
  * @returns {never}
  */
-function unknown(node) {
-  // @ts-expect-error: fine.
+function unknown(value) {
+  // Always a node.
+  const node = /** @type {Nodes} */ (value);
   throw new Error('Cannot handle unknown node `' + node.type + '`')
 }
 
@@ -7013,7 +8616,7 @@ function joinDefinition(left, right) {
  *
  * @this {State}
  *   Info passed around about the current state.
- * @param {Parent & {children: Array<PhrasingContent>}} parent
+ * @param {PhrasingParents} parent
  *   Parent of flow nodes.
  * @param {Info} info
  *   Info on where we are in the document we are generating.
@@ -7032,7 +8635,7 @@ function containerPhrasingBound(parent, info) {
  *
  * @this {State}
  *   Info passed around about the current state.
- * @param {Parent & {children: Array<FlowContent>}} parent
+ * @param {FlowParents} parent
  *   Parent of flow nodes.
  * @param {TrackFields} info
  *   Info on where we are in the document we are generating.
@@ -7073,2392 +8676,41 @@ function safeBound(value, config) {
 }
 
 /**
- * @typedef {import('mdast').Root|import('mdast').Content} Node
+ * @typedef {import('mdast').Root} Root
  * @typedef {import('mdast-util-to-markdown').Options} ToMarkdownOptions
- * @typedef {Omit<ToMarkdownOptions, 'extensions'>} Options
+ * @typedef {import('unified').Compiler<Root, string>} Compiler
+ * @typedef {import('unified').Processor<undefined, undefined, undefined, Root, string>} Processor
  */
 
 
-/** @type {import('unified').Plugin<[Options]|void[], Node, string>} */
+/**
+ * Add support for serializing to markdown.
+ *
+ * @param {Readonly<Options> | null | undefined} [options]
+ *   Configuration (optional).
+ * @returns {undefined}
+ *   Nothing.
+ */
 function remarkStringify(options) {
-  /** @type {import('unified').CompilerFunction<Node, string>} */
-  const compiler = (tree) => {
-    // Assume options.
-    const settings = /** @type {Options} */ (this.data('settings'));
+  /** @type {Processor} */
+  // @ts-expect-error: TS in JSDoc generates wrong types if `this` is typed regularly.
+  const self = this;
 
-    return toMarkdown(
-      tree,
-      Object.assign({}, settings, options, {
-        // Note: this option is not in the readme.
-        // The goal is for it to be set by plugins on `data` instead of being
-        // passed by users.
-        extensions:
-          /** @type {ToMarkdownOptions['extensions']} */ (
-            this.data('toMarkdownExtensions')
-          ) || []
-      })
-    )
-  };
+  self.compiler = compiler;
 
-  Object.assign(this, {Compiler: compiler});
-}
-
-/**
- * Like `Array#splice`, but smarter for giant arrays.
- *
- * `Array#splice` takes all items to be inserted as individual argument which
- * causes a stack overflow in V8 when trying to insert 100k items for instance.
- *
- * Otherwise, this does not return the removed items, and takes `items` as an
- * array instead of rest parameters.
- *
- * @template {unknown} T
- * @param {T[]} list
- * @param {number} start
- * @param {number} remove
- * @param {T[]} items
- * @returns {void}
- */
-function splice(list, start, remove, items) {
-  const end = list.length;
-  let chunkStart = 0;
-  /** @type {unknown[]} */
-
-  let parameters; // Make start between zero and `end` (included).
-
-  if (start < 0) {
-    start = -start > end ? 0 : end + start;
-  } else {
-    start = start > end ? end : start;
-  }
-
-  remove = remove > 0 ? remove : 0; // No need to chunk the items if there’s only a couple (10k) items.
-
-  if (items.length < 10000) {
-    parameters = Array.from(items);
-    parameters.unshift(start, remove) // @ts-expect-error Hush, it’s fine.
-    ;[].splice.apply(list, parameters);
-  } else {
-    // Delete `remove` items starting from `start`
-    if (remove) [].splice.apply(list, [start, remove]); // Insert the items in chunks to not cause stack overflows.
-
-    while (chunkStart < items.length) {
-      parameters = items.slice(chunkStart, chunkStart + 10000);
-      parameters.unshift(start, 0) // @ts-expect-error Hush, it’s fine.
-      ;[].splice.apply(list, parameters);
-      chunkStart += 10000;
-      start += 10000;
-    }
-  }
-}
-
-/**
- * @typedef {import('micromark-util-types').NormalizedExtension} NormalizedExtension
- * @typedef {import('micromark-util-types').Extension} Extension
- * @typedef {import('micromark-util-types').Construct} Construct
- * @typedef {import('micromark-util-types').HtmlExtension} HtmlExtension
- */
-
-
-const hasOwnProperty = {}.hasOwnProperty;
-
-/**
- * Combine several syntax extensions into one.
- *
- * @param {Extension[]} extensions List of syntax extensions.
- * @returns {NormalizedExtension} A single combined extension.
- */
-function combineExtensions(extensions) {
-  /** @type {NormalizedExtension} */
-  const all = {};
-  let index = -1;
-
-  while (++index < extensions.length) {
-    syntaxExtension(all, extensions[index]);
-  }
-
-  return all
-}
-
-/**
- * Merge `extension` into `all`.
- *
- * @param {NormalizedExtension} all Extension to merge into.
- * @param {Extension} extension Extension to merge.
- * @returns {void}
- */
-function syntaxExtension(all, extension) {
-  /** @type {string} */
-  let hook;
-
-  for (hook in extension) {
-    const maybe = hasOwnProperty.call(all, hook) ? all[hook] : undefined;
-    const left = maybe || (all[hook] = {});
-    const right = extension[hook];
-    /** @type {string} */
-    let code;
-
-    for (code in right) {
-      if (!hasOwnProperty.call(left, code)) left[code] = [];
-      const value = right[code];
-      constructs(
-        // @ts-expect-error Looks like a list.
-        left[code],
-        Array.isArray(value) ? value : value ? [value] : []
-      );
-    }
-  }
-}
-
-/**
- * Merge `list` into `existing` (both lists of constructs).
- * Mutates `existing`.
- *
- * @param {unknown[]} existing
- * @param {unknown[]} list
- * @returns {void}
- */
-function constructs(existing, list) {
-  let index = -1;
-  /** @type {unknown[]} */
-  const before = [];
-
-  while (++index < list.length) {
-(list[index].add === 'after' ? existing : before).push(list[index]);
-  }
-
-  splice(existing, 0, 0, before);
-}
-
-// This module is generated by `script/`.
-//
-// CommonMark handles attention (emphasis, strong) markers based on what comes
-// before or after them.
-// One such difference is if those characters are Unicode punctuation.
-// This script is generated from the Unicode data.
-const unicodePunctuationRegex =
-  /[!-/:-@[-`{-~\u00A1\u00A7\u00AB\u00B6\u00B7\u00BB\u00BF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061E\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B5A-\u1B60\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]/;
-
-/**
- * @typedef {import('micromark-util-types').Code} Code
- */
-/**
- * Check whether the character code represents an ASCII alpha (`a` through `z`,
- * case insensitive).
- *
- * An **ASCII alpha** is an ASCII upper alpha or ASCII lower alpha.
- *
- * An **ASCII upper alpha** is a character in the inclusive range U+0041 (`A`)
- * to U+005A (`Z`).
- *
- * An **ASCII lower alpha** is a character in the inclusive range U+0061 (`a`)
- * to U+007A (`z`).
- */
-
-const asciiAlpha = regexCheck(/[A-Za-z]/);
-/**
- * Check whether the character code represents an ASCII digit (`0` through `9`).
- *
- * An **ASCII digit** is a character in the inclusive range U+0030 (`0`) to
- * U+0039 (`9`).
- */
-
-const asciiDigit = regexCheck(/\d/);
-/**
- * Check whether the character code represents an ASCII alphanumeric (`a`
- * through `z`, case insensitive, or `0` through `9`).
- *
- * An **ASCII alphanumeric** is an ASCII digit (see `asciiDigit`) or ASCII alpha
- * (see `asciiAlpha`).
- */
-
-const asciiAlphanumeric = regexCheck(/[\dA-Za-z]/);
-/**
- * Check whether a character code is an ASCII control character.
- *
- * An **ASCII control** is a character in the inclusive range U+0000 NULL (NUL)
- * to U+001F (US), or U+007F (DEL).
- *
- * @param {Code} code
- * @returns {code is number}
- */
-
-function asciiControl(code) {
-  return (
-    // Special whitespace codes (which have negative values), C0 and Control
-    // character DEL
-    code !== null && (code < 32 || code === 127)
-  )
-}
-/**
- * Check whether a character code is a markdown line ending (see
- * `markdownLineEnding`) or markdown space (see `markdownSpace`).
- *
- * @param {Code} code
- * @returns {code is number}
- */
-
-function markdownLineEndingOrSpace(code) {
-  return code !== null && (code < 0 || code === 32)
-}
-/**
- * Check whether a character code is a markdown line ending.
- *
- * A **markdown line ending** is the virtual characters M-0003 CARRIAGE RETURN
- * LINE FEED (CRLF), M-0004 LINE FEED (LF) and M-0005 CARRIAGE RETURN (CR).
- *
- * In micromark, the actual character U+000A LINE FEED (LF) and U+000D CARRIAGE
- * RETURN (CR) are replaced by these virtual characters depending on whether
- * they occurred together.
- *
- * @param {Code} code
- * @returns {code is number}
- */
-
-function markdownLineEnding(code) {
-  return code !== null && code < -2
-}
-/**
- * Check whether a character code is a markdown space.
- *
- * A **markdown space** is the concrete character U+0020 SPACE (SP) and the
- * virtual characters M-0001 VIRTUAL SPACE (VS) and M-0002 HORIZONTAL TAB (HT).
- *
- * In micromark, the actual character U+0009 CHARACTER TABULATION (HT) is
- * replaced by one M-0002 HORIZONTAL TAB (HT) and between 0 and 3 M-0001 VIRTUAL
- * SPACE (VS) characters, depending on the column at which the tab occurred.
- *
- * @param {Code} code
- * @returns {code is number}
- */
-
-function markdownSpace(code) {
-  return code === -2 || code === -1 || code === 32
-}
-/**
- * Check whether the character code represents Unicode whitespace.
- *
- * Note that this does handle micromark specific markdown whitespace characters.
- * See `markdownLineEndingOrSpace` to check that.
- *
- * A **Unicode whitespace** is a character in the Unicode `Zs` (Separator,
- * Space) category, or U+0009 CHARACTER TABULATION (HT), U+000A LINE FEED (LF),
- * U+000C (FF), or U+000D CARRIAGE RETURN (CR) (**\[UNICODE]**).
- *
- * See:
- * **\[UNICODE]**:
- * [The Unicode Standard](https://www.unicode.org/versions/).
- * Unicode Consortium.
- */
-
-const unicodeWhitespace = regexCheck(/\s/);
-/**
- * Check whether the character code represents Unicode punctuation.
- *
- * A **Unicode punctuation** is a character in the Unicode `Pc` (Punctuation,
- * Connector), `Pd` (Punctuation, Dash), `Pe` (Punctuation, Close), `Pf`
- * (Punctuation, Final quote), `Pi` (Punctuation, Initial quote), `Po`
- * (Punctuation, Other), or `Ps` (Punctuation, Open) categories, or an ASCII
- * punctuation (see `asciiPunctuation`).
- *
- * See:
- * **\[UNICODE]**:
- * [The Unicode Standard](https://www.unicode.org/versions/).
- * Unicode Consortium.
- */
-// Size note: removing ASCII from the regex and using `asciiPunctuation` here
-// In fact adds to the bundle size.
-
-const unicodePunctuation = regexCheck(unicodePunctuationRegex);
-/**
- * Create a code check from a regex.
- *
- * @param {RegExp} regex
- * @returns {(code: Code) => code is number}
- */
-
-function regexCheck(regex) {
-  return check
   /**
-   * Check whether a code matches the bound regex.
-   *
-   * @param {Code} code Character code
-   * @returns {code is number} Whether the character code matches the bound regex
+   * @type {Compiler}
    */
-
-  function check(code) {
-    return code !== null && regex.test(String.fromCharCode(code))
+  function compiler(tree) {
+    return toMarkdown(tree, {
+      ...self.data('settings'),
+      ...options,
+      // Note: this option is not in the readme.
+      // The goal is for it to be set by plugins on `data` instead of being
+      // passed by users.
+      extensions: self.data('toMarkdownExtensions') || []
+    })
   }
-}
-
-/**
- * @typedef {import('micromark-util-types').Extension} Extension
- * @typedef {import('micromark-util-types').ConstructRecord} ConstructRecord
- * @typedef {import('micromark-util-types').Tokenizer} Tokenizer
- * @typedef {import('micromark-util-types').Previous} Previous
- * @typedef {import('micromark-util-types').State} State
- * @typedef {import('micromark-util-types').Event} Event
- * @typedef {import('micromark-util-types').Code} Code
- */
-const www = {
-  tokenize: tokenizeWww,
-  partial: true
-};
-const domain = {
-  tokenize: tokenizeDomain,
-  partial: true
-};
-const path = {
-  tokenize: tokenizePath,
-  partial: true
-};
-const punctuation = {
-  tokenize: tokenizePunctuation,
-  partial: true
-};
-const namedCharacterReference = {
-  tokenize: tokenizeNamedCharacterReference,
-  partial: true
-};
-const wwwAutolink = {
-  tokenize: tokenizeWwwAutolink,
-  previous: previousWww
-};
-const httpAutolink = {
-  tokenize: tokenizeHttpAutolink,
-  previous: previousHttp
-};
-const emailAutolink = {
-  tokenize: tokenizeEmailAutolink,
-  previous: previousEmail
-};
-/** @type {ConstructRecord} */
-
-const text = {};
-/** @type {Extension} */
-
-const gfmAutolinkLiteral = {
-  text
-};
-let code = 48; // Add alphanumerics.
-
-while (code < 123) {
-  text[code] = emailAutolink;
-  code++;
-  if (code === 58) code = 65;
-  else if (code === 91) code = 97;
-}
-
-text[43] = emailAutolink;
-text[45] = emailAutolink;
-text[46] = emailAutolink;
-text[95] = emailAutolink;
-text[72] = [emailAutolink, httpAutolink];
-text[104] = [emailAutolink, httpAutolink];
-text[87] = [emailAutolink, wwwAutolink];
-text[119] = [emailAutolink, wwwAutolink];
-/** @type {Tokenizer} */
-
-function tokenizeEmailAutolink(effects, ok, nok) {
-  const self = this;
-  /** @type {boolean} */
-
-  let hasDot;
-  /** @type {boolean|undefined} */
-
-  let hasDigitInLastSegment;
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    if (
-      !gfmAtext(code) ||
-      !previousEmail(self.previous) ||
-      previousUnbalanced(self.events)
-    ) {
-      return nok(code)
-    }
-
-    effects.enter('literalAutolink');
-    effects.enter('literalAutolinkEmail');
-    return atext(code)
-  }
-  /** @type {State} */
-
-  function atext(code) {
-    if (gfmAtext(code)) {
-      effects.consume(code);
-      return atext
-    }
-
-    if (code === 64) {
-      effects.consume(code);
-      return label
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function label(code) {
-    if (code === 46) {
-      return effects.check(punctuation, done, dotContinuation)(code)
-    }
-
-    if (code === 45 || code === 95) {
-      return effects.check(punctuation, nok, dashOrUnderscoreContinuation)(code)
-    }
-
-    if (asciiAlphanumeric(code)) {
-      if (!hasDigitInLastSegment && asciiDigit(code)) {
-        hasDigitInLastSegment = true;
-      }
-
-      effects.consume(code);
-      return label
-    }
-
-    return done(code)
-  }
-  /** @type {State} */
-
-  function dotContinuation(code) {
-    effects.consume(code);
-    hasDot = true;
-    hasDigitInLastSegment = undefined;
-    return label
-  }
-  /** @type {State} */
-
-  function dashOrUnderscoreContinuation(code) {
-    effects.consume(code);
-    return afterDashOrUnderscore
-  }
-  /** @type {State} */
-
-  function afterDashOrUnderscore(code) {
-    if (code === 46) {
-      return effects.check(punctuation, nok, dotContinuation)(code)
-    }
-
-    return label(code)
-  }
-  /** @type {State} */
-
-  function done(code) {
-    if (hasDot && !hasDigitInLastSegment) {
-      effects.exit('literalAutolinkEmail');
-      effects.exit('literalAutolink');
-      return ok(code)
-    }
-
-    return nok(code)
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizeWwwAutolink(effects, ok, nok) {
-  const self = this;
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    if (
-      (code !== 87 && code !== 119) ||
-      !previousWww(self.previous) ||
-      previousUnbalanced(self.events)
-    ) {
-      return nok(code)
-    }
-
-    effects.enter('literalAutolink');
-    effects.enter('literalAutolinkWww'); // For `www.` we check instead of attempt, because when it matches, GH
-    // treats it as part of a domain (yes, it says a valid domain must come
-    // after `www.`, but that’s not how it’s implemented by them).
-
-    return effects.check(
-      www,
-      effects.attempt(domain, effects.attempt(path, done), nok),
-      nok
-    )(code)
-  }
-  /** @type {State} */
-
-  function done(code) {
-    effects.exit('literalAutolinkWww');
-    effects.exit('literalAutolink');
-    return ok(code)
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizeHttpAutolink(effects, ok, nok) {
-  const self = this;
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    if (
-      (code !== 72 && code !== 104) ||
-      !previousHttp(self.previous) ||
-      previousUnbalanced(self.events)
-    ) {
-      return nok(code)
-    }
-
-    effects.enter('literalAutolink');
-    effects.enter('literalAutolinkHttp');
-    effects.consume(code);
-    return t1
-  }
-  /** @type {State} */
-
-  function t1(code) {
-    if (code === 84 || code === 116) {
-      effects.consume(code);
-      return t2
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function t2(code) {
-    if (code === 84 || code === 116) {
-      effects.consume(code);
-      return p
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function p(code) {
-    if (code === 80 || code === 112) {
-      effects.consume(code);
-      return s
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function s(code) {
-    if (code === 83 || code === 115) {
-      effects.consume(code);
-      return colon
-    }
-
-    return colon(code)
-  }
-  /** @type {State} */
-
-  function colon(code) {
-    if (code === 58) {
-      effects.consume(code);
-      return slash1
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function slash1(code) {
-    if (code === 47) {
-      effects.consume(code);
-      return slash2
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function slash2(code) {
-    if (code === 47) {
-      effects.consume(code);
-      return after
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function after(code) {
-    return code === null ||
-      asciiControl(code) ||
-      unicodeWhitespace(code) ||
-      unicodePunctuation(code)
-      ? nok(code)
-      : effects.attempt(domain, effects.attempt(path, done), nok)(code)
-  }
-  /** @type {State} */
-
-  function done(code) {
-    effects.exit('literalAutolinkHttp');
-    effects.exit('literalAutolink');
-    return ok(code)
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizeWww(effects, ok, nok) {
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    effects.consume(code);
-    return w2
-  }
-  /** @type {State} */
-
-  function w2(code) {
-    if (code === 87 || code === 119) {
-      effects.consume(code);
-      return w3
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function w3(code) {
-    if (code === 87 || code === 119) {
-      effects.consume(code);
-      return dot
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function dot(code) {
-    if (code === 46) {
-      effects.consume(code);
-      return after
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function after(code) {
-    return code === null || markdownLineEnding(code) ? nok(code) : ok(code)
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizeDomain(effects, ok, nok) {
-  /** @type {boolean|undefined} */
-  let hasUnderscoreInLastSegment;
-  /** @type {boolean|undefined} */
-
-  let hasUnderscoreInLastLastSegment;
-  return domain
-  /** @type {State} */
-
-  function domain(code) {
-    if (code === 38) {
-      return effects.check(
-        namedCharacterReference,
-        done,
-        punctuationContinuation
-      )(code)
-    }
-
-    if (code === 46 || code === 95) {
-      return effects.check(punctuation, done, punctuationContinuation)(code)
-    } // GH documents that only alphanumerics (other than `-`, `.`, and `_`) can
-    // occur, which sounds like ASCII only, but they also support `www.點看.com`,
-    // so that’s Unicode.
-    // Instead of some new production for Unicode alphanumerics, markdown
-    // already has that for Unicode punctuation and whitespace, so use those.
-
-    if (
-      code === null ||
-      asciiControl(code) ||
-      unicodeWhitespace(code) ||
-      (code !== 45 && unicodePunctuation(code))
-    ) {
-      return done(code)
-    }
-
-    effects.consume(code);
-    return domain
-  }
-  /** @type {State} */
-
-  function punctuationContinuation(code) {
-    if (code === 46) {
-      hasUnderscoreInLastLastSegment = hasUnderscoreInLastSegment;
-      hasUnderscoreInLastSegment = undefined;
-      effects.consume(code);
-      return domain
-    }
-
-    if (code === 95) hasUnderscoreInLastSegment = true;
-    effects.consume(code);
-    return domain
-  }
-  /** @type {State} */
-
-  function done(code) {
-    if (!hasUnderscoreInLastLastSegment && !hasUnderscoreInLastSegment) {
-      return ok(code)
-    }
-
-    return nok(code)
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizePath(effects, ok) {
-  let balance = 0;
-  return inPath
-  /** @type {State} */
-
-  function inPath(code) {
-    if (code === 38) {
-      return effects.check(
-        namedCharacterReference,
-        ok,
-        continuedPunctuation
-      )(code)
-    }
-
-    if (code === 40) {
-      balance++;
-    }
-
-    if (code === 41) {
-      return effects.check(
-        punctuation,
-        parenAtPathEnd,
-        continuedPunctuation
-      )(code)
-    }
-
-    if (pathEnd(code)) {
-      return ok(code)
-    }
-
-    if (trailingPunctuation(code)) {
-      return effects.check(punctuation, ok, continuedPunctuation)(code)
-    }
-
-    effects.consume(code);
-    return inPath
-  }
-  /** @type {State} */
-
-  function continuedPunctuation(code) {
-    effects.consume(code);
-    return inPath
-  }
-  /** @type {State} */
-
-  function parenAtPathEnd(code) {
-    balance--;
-    return balance < 0 ? ok(code) : continuedPunctuation(code)
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizeNamedCharacterReference(effects, ok, nok) {
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    effects.consume(code);
-    return inside
-  }
-  /** @type {State} */
-
-  function inside(code) {
-    if (asciiAlpha(code)) {
-      effects.consume(code);
-      return inside
-    }
-
-    if (code === 59) {
-      effects.consume(code);
-      return after
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function after(code) {
-    // If the named character reference is followed by the end of the path, it’s
-    // not continued punctuation.
-    return pathEnd(code) ? ok(code) : nok(code)
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizePunctuation(effects, ok, nok) {
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    effects.consume(code);
-    return after
-  }
-  /** @type {State} */
-
-  function after(code) {
-    // Check the next.
-    if (trailingPunctuation(code)) {
-      effects.consume(code);
-      return after
-    } // If the punctuation marker is followed by the end of the path, it’s not
-    // continued punctuation.
-
-    return pathEnd(code) ? ok(code) : nok(code)
-  }
-}
-/**
- * @param {Code} code
- * @returns {boolean}
- */
-
-function trailingPunctuation(code) {
-  return (
-    code === 33 ||
-    code === 34 ||
-    code === 39 ||
-    code === 41 ||
-    code === 42 ||
-    code === 44 ||
-    code === 46 ||
-    code === 58 ||
-    code === 59 ||
-    code === 60 ||
-    code === 63 ||
-    code === 95 ||
-    code === 126
-  )
-}
-/**
- * @param {Code} code
- * @returns {boolean}
- */
-
-function pathEnd(code) {
-  return code === null || code === 60 || markdownLineEndingOrSpace(code)
-}
-/**
- * @param {Code} code
- * @returns {boolean}
- */
-
-function gfmAtext(code) {
-  return (
-    code === 43 ||
-    code === 45 ||
-    code === 46 ||
-    code === 95 ||
-    asciiAlphanumeric(code)
-  )
-}
-/** @type {Previous} */
-
-function previousWww(code) {
-  return (
-    code === null ||
-    code === 40 ||
-    code === 42 ||
-    code === 95 ||
-    code === 126 ||
-    markdownLineEndingOrSpace(code)
-  )
-}
-/** @type {Previous} */
-
-function previousHttp(code) {
-  return code === null || !asciiAlpha(code)
-}
-/** @type {Previous} */
-
-function previousEmail(code) {
-  return code !== 47 && previousHttp(code)
-}
-/**
- * @param {Array<Event>} events
- * @returns {boolean}
- */
-
-function previousUnbalanced(events) {
-  let index = events.length;
-  let result = false;
-
-  while (index--) {
-    const token = events[index][1];
-
-    if (
-      (token.type === 'labelLink' || token.type === 'labelImage') &&
-      !token._balanced
-    ) {
-      result = true;
-      break
-    } // @ts-expect-error If we’ve seen this token, and it was marked as not
-    // having any unbalanced bracket before it, we can exit.
-
-    if (token._gfmAutolinkLiteralWalkedInto) {
-      result = false;
-      break
-    }
-  }
-
-  if (events.length > 0 && !result) {
-    // @ts-expect-error Mark the last token as “walked into” w/o finding
-    // anything.
-    events[events.length - 1][1]._gfmAutolinkLiteralWalkedInto = true;
-  }
-
-  return result
-}
-
-/**
- * @typedef {import('micromark-util-types').Code} Code
- */
-
-/**
- * Classify whether a character code represents whitespace, punctuation, or
- * something else.
- *
- * Used for attention (emphasis, strong), whose sequences can open or close
- * based on the class of surrounding characters.
- *
- * Note that eof (`null`) is seen as whitespace.
- *
- * @param {Code} code
- * @returns {number|undefined}
- */
-function classifyCharacter(code) {
-  if (
-    code === null ||
-    markdownLineEndingOrSpace(code) ||
-    unicodeWhitespace(code)
-  ) {
-    return 1
-  }
-
-  if (unicodePunctuation(code)) {
-    return 2
-  }
-}
-
-/**
- * @typedef {import('micromark-util-types').TokenizeContext} TokenizeContext
- * @typedef {import('micromark-util-types').Event} Event
- * @typedef {import('micromark-util-types').Resolver} Resolver
- */
-
-/**
- * Call all `resolveAll`s.
- *
- * @param {{resolveAll?: Resolver}[]} constructs
- * @param {Event[]} events
- * @param {TokenizeContext} context
- * @returns {Event[]}
- */
-function resolveAll(constructs, events, context) {
-  /** @type {Resolver[]} */
-  const called = [];
-  let index = -1;
-
-  while (++index < constructs.length) {
-    const resolve = constructs[index].resolveAll;
-
-    if (resolve && !called.includes(resolve)) {
-      events = resolve(events, context);
-      called.push(resolve);
-    }
-  }
-
-  return events
-}
-
-/**
- * @typedef {import('micromark-util-types').Effects} Effects
- * @typedef {import('micromark-util-types').State} State
- */
-/**
- * @param {Effects} effects
- * @param {State} ok
- * @param {string} type
- * @param {number} [max=Infinity]
- * @returns {State}
- */
-
-function factorySpace(effects, ok, type, max) {
-  const limit = max ? max - 1 : Number.POSITIVE_INFINITY;
-  let size = 0;
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    if (markdownSpace(code)) {
-      effects.enter(type);
-      return prefix(code)
-    }
-
-    return ok(code)
-  }
-  /** @type {State} */
-
-  function prefix(code) {
-    if (markdownSpace(code) && size++ < limit) {
-      effects.consume(code);
-      return prefix
-    }
-
-    effects.exit(type);
-    return ok(code)
-  }
-}
-
-/**
- * @typedef {import('micromark-util-types').Construct} Construct
- * @typedef {import('micromark-util-types').Tokenizer} Tokenizer
- * @typedef {import('micromark-util-types').State} State
- */
-
-/** @type {Construct} */
-const blankLine = {
-  tokenize: tokenizeBlankLine,
-  partial: true
-};
-/** @type {Tokenizer} */
-
-function tokenizeBlankLine(effects, ok, nok) {
-  return factorySpace(effects, afterWhitespace, 'linePrefix')
-  /** @type {State} */
-
-  function afterWhitespace(code) {
-    return code === null || markdownLineEnding(code) ? ok(code) : nok(code)
-  }
-}
-
-/**
- * Normalize an identifier (such as used in definitions).
- *
- * @param {string} value
- * @returns {string}
- */
-function normalizeIdentifier(value) {
-  return (
-    value // Collapse Markdown whitespace.
-      .replace(/[\t\n\r ]+/g, ' ') // Trim.
-      .replace(/^ | $/g, '') // Some characters are considered “uppercase”, but if their lowercase
-      // counterpart is uppercased will result in a different uppercase
-      // character.
-      // Hence, to get that form, we perform both lower- and uppercase.
-      // Upper case makes sure keys will not interact with default prototypal
-      // methods: no method is uppercase.
-      .toLowerCase()
-      .toUpperCase()
-  )
-}
-
-/**
- * @typedef {import('micromark-util-types').Extension} Extension
- * @typedef {import('micromark-util-types').Resolver} Resolver
- * @typedef {import('micromark-util-types').Token} Token
- * @typedef {import('micromark-util-types').Tokenizer} Tokenizer
- * @typedef {import('micromark-util-types').Exiter} Exiter
- * @typedef {import('micromark-util-types').State} State
- * @typedef {import('micromark-util-types').Event} Event
- */
-const indent = {
-  tokenize: tokenizeIndent,
-  partial: true
-};
-/**
- * @returns {Extension}
- */
-
-function gfmFootnote() {
-  /** @type {Extension} */
-  return {
-    document: {
-      [91]: {
-        tokenize: tokenizeDefinitionStart,
-        continuation: {
-          tokenize: tokenizeDefinitionContinuation
-        },
-        exit: gfmFootnoteDefinitionEnd
-      }
-    },
-    text: {
-      [91]: {
-        tokenize: tokenizeGfmFootnoteCall
-      },
-      [93]: {
-        add: 'after',
-        tokenize: tokenizePotentialGfmFootnoteCall,
-        resolveTo: resolveToPotentialGfmFootnoteCall
-      }
-    }
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizePotentialGfmFootnoteCall(effects, ok, nok) {
-  const self = this;
-  let index = self.events.length;
-  /** @type {Array<string>} */
-  // @ts-expect-error It’s fine!
-
-  const defined = self.parser.gfmFootnotes || (self.parser.gfmFootnotes = []);
-  /** @type {Token} */
-
-  let labelStart; // Find an opening.
-
-  while (index--) {
-    const token = self.events[index][1];
-
-    if (token.type === 'labelImage') {
-      labelStart = token;
-      break
-    } // Exit if we’ve walked far enough.
-
-    if (
-      token.type === 'gfmFootnoteCall' ||
-      token.type === 'labelLink' ||
-      token.type === 'label' ||
-      token.type === 'image' ||
-      token.type === 'link'
-    ) {
-      break
-    }
-  }
-
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    if (!labelStart || !labelStart._balanced) {
-      return nok(code)
-    }
-
-    const id = normalizeIdentifier(
-      self.sliceSerialize({
-        start: labelStart.end,
-        end: self.now()
-      })
-    );
-
-    if (id.charCodeAt(0) !== 94 || !defined.includes(id.slice(1))) {
-      return nok(code)
-    }
-
-    effects.enter('gfmFootnoteCallLabelMarker');
-    effects.consume(code);
-    effects.exit('gfmFootnoteCallLabelMarker');
-    return ok(code)
-  }
-}
-/** @type {Resolver} */
-
-function resolveToPotentialGfmFootnoteCall(events, context) {
-  let index = events.length;
-
-  while (index--) {
-    if (
-      events[index][1].type === 'labelImage' &&
-      events[index][0] === 'enter'
-    ) {
-      events[index][1];
-      break
-    }
-  }
-
-  // Change the `labelImageMarker` to a `data`.
-  events[index + 1][1].type = 'data';
-  events[index + 3][1].type = 'gfmFootnoteCallLabelMarker'; // The whole (without `!`):
-
-  const call = {
-    type: 'gfmFootnoteCall',
-    start: Object.assign({}, events[index + 3][1].start),
-    end: Object.assign({}, events[events.length - 1][1].end)
-  }; // The `^` marker
-
-  const marker = {
-    type: 'gfmFootnoteCallMarker',
-    start: Object.assign({}, events[index + 3][1].end),
-    end: Object.assign({}, events[index + 3][1].end)
-  }; // Increment the end 1 character.
-
-  marker.end.column++;
-  marker.end.offset++;
-  marker.end._bufferIndex++;
-  const string = {
-    type: 'gfmFootnoteCallString',
-    start: Object.assign({}, marker.end),
-    end: Object.assign({}, events[events.length - 1][1].start)
-  };
-  const chunk = {
-    type: 'chunkString',
-    contentType: 'string',
-    start: Object.assign({}, string.start),
-    end: Object.assign({}, string.end)
-  };
-  /** @type {Array<Event>} */
-
-  const replacement = [
-    // Take the `labelImageMarker` (now `data`, the `!`)
-    events[index + 1],
-    events[index + 2],
-    ['enter', call, context], // The `[`
-    events[index + 3],
-    events[index + 4], // The `^`.
-    ['enter', marker, context],
-    ['exit', marker, context], // Everything in between.
-    ['enter', string, context],
-    ['enter', chunk, context],
-    ['exit', chunk, context],
-    ['exit', string, context], // The ending (`]`, properly parsed and labelled).
-    events[events.length - 2],
-    events[events.length - 1],
-    ['exit', call, context]
-  ];
-  events.splice(index, events.length - index + 1, ...replacement);
-  return events
-}
-/** @type {Tokenizer} */
-
-function tokenizeGfmFootnoteCall(effects, ok, nok) {
-  const self = this;
-  /** @type {Array<string>} */
-  // @ts-expect-error It’s fine!
-
-  const defined = self.parser.gfmFootnotes || (self.parser.gfmFootnotes = []);
-  let size = 0;
-  /** @type {boolean} */
-
-  let data;
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    effects.enter('gfmFootnoteCall');
-    effects.enter('gfmFootnoteCallLabelMarker');
-    effects.consume(code);
-    effects.exit('gfmFootnoteCallLabelMarker');
-    return callStart
-  }
-  /** @type {State} */
-
-  function callStart(code) {
-    if (code !== 94) return nok(code)
-    effects.enter('gfmFootnoteCallMarker');
-    effects.consume(code);
-    effects.exit('gfmFootnoteCallMarker');
-    effects.enter('gfmFootnoteCallString');
-    effects.enter('chunkString').contentType = 'string';
-    return callData
-  }
-  /** @type {State} */
-
-  function callData(code) {
-    /** @type {Token} */
-    let token;
-
-    if (code === null || code === 91 || size++ > 999) {
-      return nok(code)
-    }
-
-    if (code === 93) {
-      if (!data) {
-        return nok(code)
-      }
-
-      effects.exit('chunkString');
-      token = effects.exit('gfmFootnoteCallString');
-      return defined.includes(normalizeIdentifier(self.sliceSerialize(token)))
-        ? end(code)
-        : nok(code)
-    }
-
-    effects.consume(code);
-
-    if (!markdownLineEndingOrSpace(code)) {
-      data = true;
-    }
-
-    return code === 92 ? callEscape : callData
-  }
-  /** @type {State} */
-
-  function callEscape(code) {
-    if (code === 91 || code === 92 || code === 93) {
-      effects.consume(code);
-      size++;
-      return callData
-    }
-
-    return callData(code)
-  }
-  /** @type {State} */
-
-  function end(code) {
-    effects.enter('gfmFootnoteCallLabelMarker');
-    effects.consume(code);
-    effects.exit('gfmFootnoteCallLabelMarker');
-    effects.exit('gfmFootnoteCall');
-    return ok
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizeDefinitionStart(effects, ok, nok) {
-  const self = this;
-  /** @type {Array<string>} */
-  // @ts-expect-error It’s fine!
-
-  const defined = self.parser.gfmFootnotes || (self.parser.gfmFootnotes = []);
-  /** @type {string} */
-
-  let identifier;
-  let size = 0;
-  /** @type {boolean|undefined} */
-
-  let data;
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    effects.enter('gfmFootnoteDefinition')._container = true;
-    effects.enter('gfmFootnoteDefinitionLabel');
-    effects.enter('gfmFootnoteDefinitionLabelMarker');
-    effects.consume(code);
-    effects.exit('gfmFootnoteDefinitionLabelMarker');
-    return labelStart
-  }
-  /** @type {State} */
-
-  function labelStart(code) {
-    if (code === 94) {
-      effects.enter('gfmFootnoteDefinitionMarker');
-      effects.consume(code);
-      effects.exit('gfmFootnoteDefinitionMarker');
-      effects.enter('gfmFootnoteDefinitionLabelString');
-      return atBreak
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function atBreak(code) {
-    /** @type {Token} */
-    let token;
-
-    if (code === null || code === 91 || size > 999) {
-      return nok(code)
-    }
-
-    if (code === 93) {
-      if (!data) {
-        return nok(code)
-      }
-
-      token = effects.exit('gfmFootnoteDefinitionLabelString');
-      identifier = normalizeIdentifier(self.sliceSerialize(token));
-      effects.enter('gfmFootnoteDefinitionLabelMarker');
-      effects.consume(code);
-      effects.exit('gfmFootnoteDefinitionLabelMarker');
-      effects.exit('gfmFootnoteDefinitionLabel');
-      return labelAfter
-    }
-
-    if (markdownLineEnding(code)) {
-      effects.enter('lineEnding');
-      effects.consume(code);
-      effects.exit('lineEnding');
-      size++;
-      return atBreak
-    }
-
-    effects.enter('chunkString').contentType = 'string';
-    return label(code)
-  }
-  /** @type {State} */
-
-  function label(code) {
-    if (
-      code === null ||
-      markdownLineEnding(code) ||
-      code === 91 ||
-      code === 93 ||
-      size > 999
-    ) {
-      effects.exit('chunkString');
-      return atBreak(code)
-    }
-
-    if (!markdownLineEndingOrSpace(code)) {
-      data = true;
-    }
-
-    size++;
-    effects.consume(code);
-    return code === 92 ? labelEscape : label
-  }
-  /** @type {State} */
-
-  function labelEscape(code) {
-    if (code === 91 || code === 92 || code === 93) {
-      effects.consume(code);
-      size++;
-      return label
-    }
-
-    return label(code)
-  }
-  /** @type {State} */
-
-  function labelAfter(code) {
-    if (code === 58) {
-      effects.enter('definitionMarker');
-      effects.consume(code);
-      effects.exit('definitionMarker'); // Any whitespace after the marker is eaten, forming indented code
-      // is not possible.
-      // No space is also fine, just like a block quote marker.
-
-      return factorySpace(effects, done, 'gfmFootnoteDefinitionWhitespace')
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function done(code) {
-    if (!defined.includes(identifier)) {
-      defined.push(identifier);
-    }
-
-    return ok(code)
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizeDefinitionContinuation(effects, ok, nok) {
-  // Either a blank line, which is okay, or an indented thing.
-  return effects.check(blankLine, ok, effects.attempt(indent, ok, nok))
-}
-/** @type {Exiter} */
-
-function gfmFootnoteDefinitionEnd(effects) {
-  effects.exit('gfmFootnoteDefinition');
-}
-/** @type {Tokenizer} */
-
-function tokenizeIndent(effects, ok, nok) {
-  const self = this;
-  return factorySpace(
-    effects,
-    afterPrefix,
-    'gfmFootnoteDefinitionIndent',
-    4 + 1
-  )
-  /** @type {State} */
-
-  function afterPrefix(code) {
-    const tail = self.events[self.events.length - 1];
-    return tail &&
-      tail[1].type === 'gfmFootnoteDefinitionIndent' &&
-      tail[2].sliceSerialize(tail[1], true).length === 4
-      ? ok(code)
-      : nok(code)
-  }
-}
-
-/**
- * @typedef {import('micromark-util-types').Extension} Extension
- * @typedef {import('micromark-util-types').Resolver} Resolver
- * @typedef {import('micromark-util-types').Tokenizer} Tokenizer
- * @typedef {import('micromark-util-types').State} State
- * @typedef {import('micromark-util-types').Token} Token
- * @typedef {import('micromark-util-types').Event} Event
- */
-
-
-/**
- * @param {Options} [options]
- * @returns {Extension}
- */
-function gfmStrikethrough(options = {}) {
-  let single = options.singleTilde;
-  const tokenizer = {
-    tokenize: tokenizeStrikethrough,
-    resolveAll: resolveAllStrikethrough
-  };
-
-  if (single === null || single === undefined) {
-    single = true;
-  }
-
-  return {
-    text: {
-      [126]: tokenizer
-    },
-    insideSpan: {
-      null: [tokenizer]
-    },
-    attentionMarkers: {
-      null: [126]
-    }
-  }
-  /**
-   * Take events and resolve strikethrough.
-   *
-   * @type {Resolver}
-   */
-
-  function resolveAllStrikethrough(events, context) {
-    let index = -1; // Walk through all events.
-
-    while (++index < events.length) {
-      // Find a token that can close.
-      if (
-        events[index][0] === 'enter' &&
-        events[index][1].type === 'strikethroughSequenceTemporary' &&
-        events[index][1]._close
-      ) {
-        let open = index; // Now walk back to find an opener.
-
-        while (open--) {
-          // Find a token that can open the closer.
-          if (
-            events[open][0] === 'exit' &&
-            events[open][1].type === 'strikethroughSequenceTemporary' &&
-            events[open][1]._open && // If the sizes are the same:
-            events[index][1].end.offset - events[index][1].start.offset ===
-              events[open][1].end.offset - events[open][1].start.offset
-          ) {
-            events[index][1].type = 'strikethroughSequence';
-            events[open][1].type = 'strikethroughSequence';
-            const strikethrough = {
-              type: 'strikethrough',
-              start: Object.assign({}, events[open][1].start),
-              end: Object.assign({}, events[index][1].end)
-            };
-            const text = {
-              type: 'strikethroughText',
-              start: Object.assign({}, events[open][1].end),
-              end: Object.assign({}, events[index][1].start)
-            }; // Opening.
-
-            const nextEvents = [
-              ['enter', strikethrough, context],
-              ['enter', events[open][1], context],
-              ['exit', events[open][1], context],
-              ['enter', text, context]
-            ]; // Between.
-
-            splice(
-              nextEvents,
-              nextEvents.length,
-              0,
-              resolveAll(
-                context.parser.constructs.insideSpan.null,
-                events.slice(open + 1, index),
-                context
-              )
-            ); // Closing.
-
-            splice(nextEvents, nextEvents.length, 0, [
-              ['exit', text, context],
-              ['enter', events[index][1], context],
-              ['exit', events[index][1], context],
-              ['exit', strikethrough, context]
-            ]);
-            splice(events, open - 1, index - open + 3, nextEvents);
-            index = open + nextEvents.length - 2;
-            break
-          }
-        }
-      }
-    }
-
-    index = -1;
-
-    while (++index < events.length) {
-      if (events[index][1].type === 'strikethroughSequenceTemporary') {
-        events[index][1].type = 'data';
-      }
-    }
-
-    return events
-  }
-  /** @type {Tokenizer} */
-
-  function tokenizeStrikethrough(effects, ok, nok) {
-    const previous = this.previous;
-    const events = this.events;
-    let size = 0;
-    return start
-    /** @type {State} */
-
-    function start(code) {
-      if (
-        previous === 126 &&
-        events[events.length - 1][1].type !== 'characterEscape'
-      ) {
-        return nok(code)
-      }
-
-      effects.enter('strikethroughSequenceTemporary');
-      return more(code)
-    }
-    /** @type {State} */
-
-    function more(code) {
-      const before = classifyCharacter(previous);
-
-      if (code === 126) {
-        // If this is the third marker, exit.
-        if (size > 1) return nok(code)
-        effects.consume(code);
-        size++;
-        return more
-      }
-
-      if (size < 2 && !single) return nok(code)
-      const token = effects.exit('strikethroughSequenceTemporary');
-      const after = classifyCharacter(code);
-      token._open = !after || (after === 2 && Boolean(before));
-      token._close = !before || (before === 2 && Boolean(after));
-      return ok(code)
-    }
-  }
-}
-
-/**
- * @typedef {import('micromark-util-types').Extension} Extension
- * @typedef {import('micromark-util-types').Resolver} Resolver
- * @typedef {import('micromark-util-types').Tokenizer} Tokenizer
- * @typedef {import('micromark-util-types').State} State
- * @typedef {import('micromark-util-types').Token} Token
- */
-
-
-/** @type {Extension} */
-const gfmTable = {
-  flow: {
-    null: {
-      tokenize: tokenizeTable,
-      resolve: resolveTable
-    }
-  }
-};
-const nextPrefixedOrBlank = {
-  tokenize: tokenizeNextPrefixedOrBlank,
-  partial: true
-};
-/** @type {Resolver} */
-
-function resolveTable(events, context) {
-  let index = -1;
-  /** @type {boolean|undefined} */
-
-  let inHead;
-  /** @type {boolean|undefined} */
-
-  let inDelimiterRow;
-  /** @type {boolean|undefined} */
-
-  let inRow;
-  /** @type {number|undefined} */
-
-  let contentStart;
-  /** @type {number|undefined} */
-
-  let contentEnd;
-  /** @type {number|undefined} */
-
-  let cellStart;
-  /** @type {boolean|undefined} */
-
-  let seenCellInRow;
-
-  while (++index < events.length) {
-    const token = events[index][1];
-
-    if (inRow) {
-      if (token.type === 'temporaryTableCellContent') {
-        contentStart = contentStart || index;
-        contentEnd = index;
-      }
-
-      if (
-        // Combine separate content parts into one.
-        (token.type === 'tableCellDivider' || token.type === 'tableRow') &&
-        contentEnd
-      ) {
-        const content = {
-          type: 'tableContent',
-          start: events[contentStart][1].start,
-          end: events[contentEnd][1].end
-        };
-        /** @type {Token} */
-
-        const text = {
-          type: 'chunkText',
-          start: content.start,
-          end: content.end,
-          // @ts-expect-error It’s fine.
-          contentType: 'text'
-        };
-        events.splice(
-          contentStart,
-          contentEnd - contentStart + 1,
-          ['enter', content, context],
-          ['enter', text, context],
-          ['exit', text, context],
-          ['exit', content, context]
-        );
-        index -= contentEnd - contentStart - 3;
-        contentStart = undefined;
-        contentEnd = undefined;
-      }
-    }
-
-    if (
-      events[index][0] === 'exit' &&
-      cellStart !== undefined &&
-      cellStart + (seenCellInRow ? 0 : 1) < index &&
-      (token.type === 'tableCellDivider' ||
-        (token.type === 'tableRow' &&
-          (cellStart + 3 < index ||
-            events[cellStart][1].type !== 'whitespace')))
-    ) {
-      const cell = {
-        type: inDelimiterRow
-          ? 'tableDelimiter'
-          : inHead
-          ? 'tableHeader'
-          : 'tableData',
-        start: events[cellStart][1].start,
-        end: events[index][1].end
-      };
-      events.splice(index + (token.type === 'tableCellDivider' ? 1 : 0), 0, [
-        'exit',
-        cell,
-        context
-      ]);
-      events.splice(cellStart, 0, ['enter', cell, context]);
-      index += 2;
-      cellStart = index + 1;
-      seenCellInRow = true;
-    }
-
-    if (token.type === 'tableRow') {
-      inRow = events[index][0] === 'enter';
-
-      if (inRow) {
-        cellStart = index + 1;
-        seenCellInRow = false;
-      }
-    }
-
-    if (token.type === 'tableDelimiterRow') {
-      inDelimiterRow = events[index][0] === 'enter';
-
-      if (inDelimiterRow) {
-        cellStart = index + 1;
-        seenCellInRow = false;
-      }
-    }
-
-    if (token.type === 'tableHead') {
-      inHead = events[index][0] === 'enter';
-    }
-  }
-
-  return events
-}
-/** @type {Tokenizer} */
-
-function tokenizeTable(effects, ok, nok) {
-  const self = this;
-  /** @type {Array<Align>} */
-
-  const align = [];
-  let tableHeaderCount = 0;
-  /** @type {boolean|undefined} */
-
-  let seenDelimiter;
-  /** @type {boolean|undefined} */
-
-  let hasDash;
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    // @ts-expect-error Custom.
-    effects.enter('table')._align = align;
-    effects.enter('tableHead');
-    effects.enter('tableRow'); // If we start with a pipe, we open a cell marker.
-
-    if (code === 124) {
-      return cellDividerHead(code)
-    }
-
-    tableHeaderCount++;
-    effects.enter('temporaryTableCellContent'); // Can’t be space or eols at the start of a construct, so we’re in a cell.
-
-    return inCellContentHead(code)
-  }
-  /** @type {State} */
-
-  function cellDividerHead(code) {
-    effects.enter('tableCellDivider');
-    effects.consume(code);
-    effects.exit('tableCellDivider');
-    seenDelimiter = true;
-    return cellBreakHead
-  }
-  /** @type {State} */
-
-  function cellBreakHead(code) {
-    if (code === null || markdownLineEnding(code)) {
-      return atRowEndHead(code)
-    }
-
-    if (markdownSpace(code)) {
-      effects.enter('whitespace');
-      effects.consume(code);
-      return inWhitespaceHead
-    }
-
-    if (seenDelimiter) {
-      seenDelimiter = undefined;
-      tableHeaderCount++;
-    }
-
-    if (code === 124) {
-      return cellDividerHead(code)
-    } // Anything else is cell content.
-
-    effects.enter('temporaryTableCellContent');
-    return inCellContentHead(code)
-  }
-  /** @type {State} */
-
-  function inWhitespaceHead(code) {
-    if (markdownSpace(code)) {
-      effects.consume(code);
-      return inWhitespaceHead
-    }
-
-    effects.exit('whitespace');
-    return cellBreakHead(code)
-  }
-  /** @type {State} */
-
-  function inCellContentHead(code) {
-    // EOF, whitespace, pipe
-    if (code === null || code === 124 || markdownLineEndingOrSpace(code)) {
-      effects.exit('temporaryTableCellContent');
-      return cellBreakHead(code)
-    }
-
-    effects.consume(code);
-    return code === 92 ? inCellContentEscapeHead : inCellContentHead
-  }
-  /** @type {State} */
-
-  function inCellContentEscapeHead(code) {
-    if (code === 92 || code === 124) {
-      effects.consume(code);
-      return inCellContentHead
-    } // Anything else.
-
-    return inCellContentHead(code)
-  }
-  /** @type {State} */
-
-  function atRowEndHead(code) {
-    if (code === null) {
-      return nok(code)
-    }
-
-    effects.exit('tableRow');
-    effects.exit('tableHead');
-    const originalInterrupt = self.interrupt;
-    self.interrupt = true;
-    return effects.attempt(
-      {
-        tokenize: tokenizeRowEnd,
-        partial: true
-      },
-      function (code) {
-        self.interrupt = originalInterrupt;
-        effects.enter('tableDelimiterRow');
-        return atDelimiterRowBreak(code)
-      },
-      function (code) {
-        self.interrupt = originalInterrupt;
-        return nok(code)
-      }
-    )(code)
-  }
-  /** @type {State} */
-
-  function atDelimiterRowBreak(code) {
-    if (code === null || markdownLineEnding(code)) {
-      return rowEndDelimiter(code)
-    }
-
-    if (markdownSpace(code)) {
-      effects.enter('whitespace');
-      effects.consume(code);
-      return inWhitespaceDelimiter
-    }
-
-    if (code === 45) {
-      effects.enter('tableDelimiterFiller');
-      effects.consume(code);
-      hasDash = true;
-      align.push('none');
-      return inFillerDelimiter
-    }
-
-    if (code === 58) {
-      effects.enter('tableDelimiterAlignment');
-      effects.consume(code);
-      effects.exit('tableDelimiterAlignment');
-      align.push('left');
-      return afterLeftAlignment
-    } // If we start with a pipe, we open a cell marker.
-
-    if (code === 124) {
-      effects.enter('tableCellDivider');
-      effects.consume(code);
-      effects.exit('tableCellDivider');
-      return atDelimiterRowBreak
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function inWhitespaceDelimiter(code) {
-    if (markdownSpace(code)) {
-      effects.consume(code);
-      return inWhitespaceDelimiter
-    }
-
-    effects.exit('whitespace');
-    return atDelimiterRowBreak(code)
-  }
-  /** @type {State} */
-
-  function inFillerDelimiter(code) {
-    if (code === 45) {
-      effects.consume(code);
-      return inFillerDelimiter
-    }
-
-    effects.exit('tableDelimiterFiller');
-
-    if (code === 58) {
-      effects.enter('tableDelimiterAlignment');
-      effects.consume(code);
-      effects.exit('tableDelimiterAlignment');
-      align[align.length - 1] =
-        align[align.length - 1] === 'left' ? 'center' : 'right';
-      return afterRightAlignment
-    }
-
-    return atDelimiterRowBreak(code)
-  }
-  /** @type {State} */
-
-  function afterLeftAlignment(code) {
-    if (code === 45) {
-      effects.enter('tableDelimiterFiller');
-      effects.consume(code);
-      hasDash = true;
-      return inFillerDelimiter
-    } // Anything else is not ok.
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function afterRightAlignment(code) {
-    if (code === null || markdownLineEnding(code)) {
-      return rowEndDelimiter(code)
-    }
-
-    if (markdownSpace(code)) {
-      effects.enter('whitespace');
-      effects.consume(code);
-      return inWhitespaceDelimiter
-    } // `|`
-
-    if (code === 124) {
-      effects.enter('tableCellDivider');
-      effects.consume(code);
-      effects.exit('tableCellDivider');
-      return atDelimiterRowBreak
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function rowEndDelimiter(code) {
-    effects.exit('tableDelimiterRow'); // Exit if there was no dash at all, or if the header cell count is not the
-    // delimiter cell count.
-
-    if (!hasDash || tableHeaderCount !== align.length) {
-      return nok(code)
-    }
-
-    if (code === null) {
-      return tableClose(code)
-    }
-
-    return effects.check(
-      nextPrefixedOrBlank,
-      tableClose,
-      effects.attempt(
-        {
-          tokenize: tokenizeRowEnd,
-          partial: true
-        },
-        factorySpace(effects, bodyStart, 'linePrefix', 4),
-        tableClose
-      )
-    )(code)
-  }
-  /** @type {State} */
-
-  function tableClose(code) {
-    effects.exit('table');
-    return ok(code)
-  }
-  /** @type {State} */
-
-  function bodyStart(code) {
-    effects.enter('tableBody');
-    return rowStartBody(code)
-  }
-  /** @type {State} */
-
-  function rowStartBody(code) {
-    effects.enter('tableRow'); // If we start with a pipe, we open a cell marker.
-
-    if (code === 124) {
-      return cellDividerBody(code)
-    }
-
-    effects.enter('temporaryTableCellContent'); // Can’t be space or eols at the start of a construct, so we’re in a cell.
-
-    return inCellContentBody(code)
-  }
-  /** @type {State} */
-
-  function cellDividerBody(code) {
-    effects.enter('tableCellDivider');
-    effects.consume(code);
-    effects.exit('tableCellDivider');
-    return cellBreakBody
-  }
-  /** @type {State} */
-
-  function cellBreakBody(code) {
-    if (code === null || markdownLineEnding(code)) {
-      return atRowEndBody(code)
-    }
-
-    if (markdownSpace(code)) {
-      effects.enter('whitespace');
-      effects.consume(code);
-      return inWhitespaceBody
-    } // `|`
-
-    if (code === 124) {
-      return cellDividerBody(code)
-    } // Anything else is cell content.
-
-    effects.enter('temporaryTableCellContent');
-    return inCellContentBody(code)
-  }
-  /** @type {State} */
-
-  function inWhitespaceBody(code) {
-    if (markdownSpace(code)) {
-      effects.consume(code);
-      return inWhitespaceBody
-    }
-
-    effects.exit('whitespace');
-    return cellBreakBody(code)
-  }
-  /** @type {State} */
-
-  function inCellContentBody(code) {
-    // EOF, whitespace, pipe
-    if (code === null || code === 124 || markdownLineEndingOrSpace(code)) {
-      effects.exit('temporaryTableCellContent');
-      return cellBreakBody(code)
-    }
-
-    effects.consume(code);
-    return code === 92 ? inCellContentEscapeBody : inCellContentBody
-  }
-  /** @type {State} */
-
-  function inCellContentEscapeBody(code) {
-    if (code === 92 || code === 124) {
-      effects.consume(code);
-      return inCellContentBody
-    } // Anything else.
-
-    return inCellContentBody(code)
-  }
-  /** @type {State} */
-
-  function atRowEndBody(code) {
-    effects.exit('tableRow');
-
-    if (code === null) {
-      return tableBodyClose(code)
-    }
-
-    return effects.check(
-      nextPrefixedOrBlank,
-      tableBodyClose,
-      effects.attempt(
-        {
-          tokenize: tokenizeRowEnd,
-          partial: true
-        },
-        factorySpace(effects, rowStartBody, 'linePrefix', 4),
-        tableBodyClose
-      )
-    )(code)
-  }
-  /** @type {State} */
-
-  function tableBodyClose(code) {
-    effects.exit('tableBody');
-    return tableClose(code)
-  }
-  /** @type {Tokenizer} */
-
-  function tokenizeRowEnd(effects, ok, nok) {
-    return start
-    /** @type {State} */
-
-    function start(code) {
-      effects.enter('lineEnding');
-      effects.consume(code);
-      effects.exit('lineEnding');
-      return factorySpace(effects, prefixed, 'linePrefix')
-    }
-    /** @type {State} */
-
-    function prefixed(code) {
-      // Blank or interrupting line.
-      if (
-        self.parser.lazy[self.now().line] ||
-        code === null ||
-        markdownLineEnding(code)
-      ) {
-        return nok(code)
-      }
-
-      const tail = self.events[self.events.length - 1]; // Indented code can interrupt delimiter and body rows.
-
-      if (
-        !self.parser.constructs.disable.null.includes('codeIndented') &&
-        tail &&
-        tail[1].type === 'linePrefix' &&
-        tail[2].sliceSerialize(tail[1], true).length >= 4
-      ) {
-        return nok(code)
-      }
-
-      self._gfmTableDynamicInterruptHack = true;
-      return effects.check(
-        self.parser.constructs.flow,
-        function (code) {
-          self._gfmTableDynamicInterruptHack = false;
-          return nok(code)
-        },
-        function (code) {
-          self._gfmTableDynamicInterruptHack = false;
-          return ok(code)
-        }
-      )(code)
-    }
-  }
-}
-/** @type {Tokenizer} */
-
-function tokenizeNextPrefixedOrBlank(effects, ok, nok) {
-  let size = 0;
-  return start
-  /** @type {State} */
-
-  function start(code) {
-    // This is a check, so we don’t care about tokens, but we open a bogus one
-    // so we’re valid.
-    effects.enter('check'); // EOL.
-
-    effects.consume(code);
-    return whitespace
-  }
-  /** @type {State} */
-
-  function whitespace(code) {
-    if (code === -1 || code === 32) {
-      effects.consume(code);
-      size++;
-      return size === 4 ? ok : whitespace
-    } // EOF or whitespace
-
-    if (code === null || markdownLineEndingOrSpace(code)) {
-      return ok(code)
-    } // Anything else.
-
-    return nok(code)
-  }
-}
-
-/**
- * @typedef {import('micromark-util-types').Extension} Extension
- * @typedef {import('micromark-util-types').ConstructRecord} ConstructRecord
- * @typedef {import('micromark-util-types').Tokenizer} Tokenizer
- * @typedef {import('micromark-util-types').Previous} Previous
- * @typedef {import('micromark-util-types').State} State
- * @typedef {import('micromark-util-types').Event} Event
- * @typedef {import('micromark-util-types').Code} Code
- */
-const tasklistCheck = {
-  tokenize: tokenizeTasklistCheck
-};
-const gfmTaskListItem = {
-  text: {
-    [91]: tasklistCheck
-  }
-};
-/** @type {Tokenizer} */
-
-function tokenizeTasklistCheck(effects, ok, nok) {
-  const self = this;
-  return open
-  /** @type {State} */
-
-  function open(code) {
-    if (
-      // Exit if there’s stuff before.
-      self.previous !== null || // Exit if not in the first content that is the first child of a list
-      // item.
-      !self._gfmTasklistFirstContentOfListItem
-    ) {
-      return nok(code)
-    }
-
-    effects.enter('taskListCheck');
-    effects.enter('taskListCheckMarker');
-    effects.consume(code);
-    effects.exit('taskListCheckMarker');
-    return inside
-  }
-  /** @type {State} */
-
-  function inside(code) {
-    // To match how GH works in comments, use `markdownSpace` (`[ \t]`) instead
-    // of `markdownLineEndingOrSpace` (`[ \t\r\n]`).
-    if (markdownLineEndingOrSpace(code)) {
-      effects.enter('taskListCheckValueUnchecked');
-      effects.consume(code);
-      effects.exit('taskListCheckValueUnchecked');
-      return close
-    }
-
-    if (code === 88 || code === 120) {
-      effects.enter('taskListCheckValueChecked');
-      effects.consume(code);
-      effects.exit('taskListCheckValueChecked');
-      return close
-    }
-
-    return nok(code)
-  }
-  /** @type {State} */
-
-  function close(code) {
-    if (code === 93) {
-      effects.enter('taskListCheckMarker');
-      effects.consume(code);
-      effects.exit('taskListCheckMarker');
-      effects.exit('taskListCheck');
-      return effects.check(
-        {
-          tokenize: spaceThenNonSpace
-        },
-        ok,
-        nok
-      )
-    }
-
-    return nok(code)
-  }
-}
-/** @type {Tokenizer} */
-
-function spaceThenNonSpace(effects, ok, nok) {
-  const self = this;
-  return factorySpace(effects, after, 'whitespace')
-  /** @type {State} */
-
-  function after(code) {
-    const tail = self.events[self.events.length - 1];
-    return (
-      // We either found spaces…
-      ((tail && tail[1].type === 'whitespace') || // …or it was followed by a line ending, in which case, there has to be
-        // non-whitespace after that line ending, because otherwise we’d get an
-        // EOF as the content is closed with blank lines.
-        markdownLineEnding(code)) &&
-        code !== null
-        ? ok(code)
-        : nok(code)
-    )
-  }
-}
-
-/**
- * @typedef {import('micromark-util-types').Extension} Extension
- * @typedef {import('micromark-util-types').HtmlExtension} HtmlExtension
- * @typedef {import('micromark-extension-gfm-strikethrough').Options} Options
- * @typedef {import('micromark-extension-gfm-footnote').HtmlOptions} HtmlOptions
- */
-
-
-/**
- * Support GFM or markdown on github.com.
- *
- * @param {Options} [options]
- * @returns {Extension}
- */
-function gfm(options) {
-  return combineExtensions([
-    gfmAutolinkLiteral,
-    gfmFootnote(),
-    gfmStrikethrough(options),
-    gfmTable,
-    gfmTaskListItem
-  ])
 }
 
 /**
@@ -9502,17 +8754,10 @@ function escapeStringRegexp(string) {
 }
 
 /**
- * @typedef {import('mdast').Parent} MdastParent
- * @typedef {import('mdast').Root} Root
- * @typedef {import('mdast').Content} Content
- * @typedef {import('mdast').PhrasingContent} PhrasingContent
- * @typedef {import('mdast').Text} Text
- * @typedef {import('unist-util-visit-parents').Test} Test
- * @typedef {import('unist-util-visit-parents').VisitorResult} VisitorResult
+ * @import {Nodes, Parents, PhrasingContent, Root, Text} from 'mdast'
+ * @import {BuildVisitor, Test, VisitorResult} from 'unist-util-visit-parents'
  */
 
-
-const own = {}.hasOwnProperty;
 
 /**
  * Find patterns in a tree and replace them.
@@ -9521,208 +8766,167 @@ const own = {}.hasOwnProperty;
  * nodes.
  * Partial matches are not supported.
  *
- * @param tree
+ * @param {Nodes} tree
  *   Tree to change.
- * @param find
+ * @param {FindAndReplaceList | FindAndReplaceTuple} list
  *   Patterns to find.
- * @param replace
- *   Things to replace with (when `find` is `Find`) or configuration.
- * @param options
+ * @param {Options | null | undefined} [options]
  *   Configuration (when `find` is not `Find`).
- * @returns
- *   Given, modified, tree.
+ * @returns {undefined}
+ *   Nothing.
  */
-// To do: next major: remove `find` & `replace` combo, remove schema.
-const findAndReplace =
-  /**
-   * @type {(
-   *   (<Tree extends Node>(tree: Tree, find: Find, replace?: Replace | null | undefined, options?: Options | null | undefined) => Tree) &
-   *   (<Tree extends Node>(tree: Tree, schema: FindAndReplaceSchema | FindAndReplaceList, options?: Options | null | undefined) => Tree)
-   * )}
-   **/
-  (
-    /**
-     * @template {Node} Tree
-     * @param {Tree} tree
-     * @param {Find | FindAndReplaceSchema | FindAndReplaceList} find
-     * @param {Replace | Options | null | undefined} [replace]
-     * @param {Options | null | undefined} [options]
-     * @returns {Tree}
-     */
-    function (tree, find, replace, options) {
-      /** @type {Options | null | undefined} */
-      let settings;
-      /** @type {FindAndReplaceSchema|FindAndReplaceList} */
-      let schema;
+function findAndReplace(tree, list, options) {
+  const settings = options || {};
+  const ignored = convert(settings.ignore || []);
+  const pairs = toPairs(list);
+  let pairIndex = -1;
 
-      if (typeof find === 'string' || find instanceof RegExp) {
-        // @ts-expect-error don’t expect options twice.
-        schema = [[find, replace]];
-        settings = options;
-      } else {
-        schema = find;
-        // @ts-expect-error don’t expect replace twice.
-        settings = replace;
+  while (++pairIndex < pairs.length) {
+    visitParents(tree, 'text', visitor);
+  }
+
+  /** @type {BuildVisitor<Root, 'text'>} */
+  function visitor(node, parents) {
+    let index = -1;
+    /** @type {Parents | undefined} */
+    let grandparent;
+
+    while (++index < parents.length) {
+      const parent = parents[index];
+      /** @type {Array<Nodes> | undefined} */
+      const siblings = grandparent ? grandparent.children : undefined;
+
+      if (
+        ignored(
+          parent,
+          siblings ? siblings.indexOf(parent) : undefined,
+          grandparent
+        )
+      ) {
+        return
       }
 
-      if (!settings) {
-        settings = {};
-      }
-
-      const ignored = convert(settings.ignore || []);
-      const pairs = toPairs(schema);
-      let pairIndex = -1;
-
-      while (++pairIndex < pairs.length) {
-        visitParents(tree, 'text', visitor);
-      }
-
-      // To do next major: don’t return the given tree.
-      return tree
-
-      /** @type {import('unist-util-visit-parents/complex-types.js').BuildVisitor<Root, 'text'>} */
-      function visitor(node, parents) {
-        let index = -1;
-        /** @type {Parent | undefined} */
-        let grandparent;
-
-        while (++index < parents.length) {
-          const parent = parents[index];
-
-          if (
-            ignored(
-              parent,
-              // @ts-expect-error: TS doesn’t understand but it’s perfect.
-              grandparent ? grandparent.children.indexOf(parent) : undefined,
-              grandparent
-            )
-          ) {
-            return
-          }
-
-          grandparent = parent;
-        }
-
-        if (grandparent) {
-          return handler(node, parents)
-        }
-      }
-
-      /**
-       * Handle a text node which is not in an ignored parent.
-       *
-       * @param {Text} node
-       *   Text node.
-       * @param {Array<Parent>} parents
-       *   Parents.
-       * @returns {VisitorResult}
-       *   Result.
-       */
-      function handler(node, parents) {
-        const parent = parents[parents.length - 1];
-        const find = pairs[pairIndex][0];
-        const replace = pairs[pairIndex][1];
-        let start = 0;
-        // @ts-expect-error: TS is wrong, some of these children can be text.
-        const index = parent.children.indexOf(node);
-        let change = false;
-        /** @type {Array<PhrasingContent>} */
-        let nodes = [];
-
-        find.lastIndex = 0;
-
-        let match = find.exec(node.value);
-
-        while (match) {
-          const position = match.index;
-          /** @type {RegExpMatchObject} */
-          const matchObject = {
-            index: match.index,
-            input: match.input,
-            // @ts-expect-error: stack is fine.
-            stack: [...parents, node]
-          };
-          let value = replace(...match, matchObject);
-
-          if (typeof value === 'string') {
-            value = value.length > 0 ? {type: 'text', value} : undefined;
-          }
-
-          // It wasn’t a match after all.
-          if (value !== false) {
-            if (start !== position) {
-              nodes.push({
-                type: 'text',
-                value: node.value.slice(start, position)
-              });
-            }
-
-            if (Array.isArray(value)) {
-              nodes.push(...value);
-            } else if (value) {
-              nodes.push(value);
-            }
-
-            start = position + match[0].length;
-            change = true;
-          }
-
-          if (!find.global) {
-            break
-          }
-
-          match = find.exec(node.value);
-        }
-
-        if (change) {
-          if (start < node.value.length) {
-            nodes.push({type: 'text', value: node.value.slice(start)});
-          }
-
-          parent.children.splice(index, 1, ...nodes);
-        } else {
-          nodes = [node];
-        }
-
-        return index + nodes.length
-      }
+      grandparent = parent;
     }
-  );
+
+    if (grandparent) {
+      return handler(node, parents)
+    }
+  }
+
+  /**
+   * Handle a text node which is not in an ignored parent.
+   *
+   * @param {Text} node
+   *   Text node.
+   * @param {Array<Parents>} parents
+   *   Parents.
+   * @returns {VisitorResult}
+   *   Result.
+   */
+  function handler(node, parents) {
+    const parent = parents[parents.length - 1];
+    const find = pairs[pairIndex][0];
+    const replace = pairs[pairIndex][1];
+    let start = 0;
+    /** @type {Array<Nodes>} */
+    const siblings = parent.children;
+    const index = siblings.indexOf(node);
+    let change = false;
+    /** @type {Array<PhrasingContent>} */
+    let nodes = [];
+
+    find.lastIndex = 0;
+
+    let match = find.exec(node.value);
+
+    while (match) {
+      const position = match.index;
+      /** @type {RegExpMatchObject} */
+      const matchObject = {
+        index: match.index,
+        input: match.input,
+        stack: [...parents, node]
+      };
+      let value = replace(...match, matchObject);
+
+      if (typeof value === 'string') {
+        value = value.length > 0 ? {type: 'text', value} : undefined;
+      }
+
+      // It wasn’t a match after all.
+      if (value === false) {
+        // False acts as if there was no match.
+        // So we need to reset `lastIndex`, which currently being at the end of
+        // the current match, to the beginning.
+        find.lastIndex = position + 1;
+      } else {
+        if (start !== position) {
+          nodes.push({
+            type: 'text',
+            value: node.value.slice(start, position)
+          });
+        }
+
+        if (Array.isArray(value)) {
+          nodes.push(...value);
+        } else if (value) {
+          nodes.push(value);
+        }
+
+        start = position + match[0].length;
+        change = true;
+      }
+
+      if (!find.global) {
+        break
+      }
+
+      match = find.exec(node.value);
+    }
+
+    if (change) {
+      if (start < node.value.length) {
+        nodes.push({type: 'text', value: node.value.slice(start)});
+      }
+
+      parent.children.splice(index, 1, ...nodes);
+    } else {
+      nodes = [node];
+    }
+
+    return index + nodes.length
+  }
+}
 
 /**
- * Turn a schema into pairs.
+ * Turn a tuple or a list of tuples into pairs.
  *
- * @param {FindAndReplaceSchema | FindAndReplaceList} schema
+ * @param {FindAndReplaceList | FindAndReplaceTuple} tupleOrList
  *   Schema.
  * @returns {Pairs}
  *   Clean pairs.
  */
-function toPairs(schema) {
+function toPairs(tupleOrList) {
   /** @type {Pairs} */
   const result = [];
 
-  if (typeof schema !== 'object') {
-    throw new TypeError('Expected array or object as schema')
+  if (!Array.isArray(tupleOrList)) {
+    throw new TypeError('Expected find and replace tuple or list of tuples')
   }
 
-  if (Array.isArray(schema)) {
-    let index = -1;
+  /** @type {FindAndReplaceList} */
+  // @ts-expect-error: correct.
+  const list =
+    !tupleOrList[0] || Array.isArray(tupleOrList[0])
+      ? tupleOrList
+      : [tupleOrList];
 
-    while (++index < schema.length) {
-      result.push([
-        toExpression(schema[index][0]),
-        toFunction(schema[index][1])
-      ]);
-    }
-  } else {
-    /** @type {string} */
-    let key;
+  let index = -1;
 
-    for (key in schema) {
-      if (own.call(schema, key)) {
-        result.push([toExpression(key), toFunction(schema[key])]);
-      }
-    }
+  while (++index < list.length) {
+    const tuple = list[index];
+    result.push([toExpression(tuple[0]), toFunction(tuple[1])]);
   }
 
   return result
@@ -9749,23 +8953,18 @@ function toExpression(find) {
  *   Function.
  */
 function toFunction(replace) {
-  return typeof replace === 'function' ? replace : () => replace
+  return typeof replace === 'function'
+    ? replace
+    : function () {
+        return replace
+      }
 }
 
 /**
- * @typedef {import('mdast').Link} Link
- * @typedef {import('mdast').PhrasingContent} PhrasingContent
- *
- * @typedef {import('mdast-util-from-markdown').CompileContext} CompileContext
- * @typedef {import('mdast-util-from-markdown').Extension} FromMarkdownExtension
- * @typedef {import('mdast-util-from-markdown').Handle} FromMarkdownHandle
- * @typedef {import('mdast-util-from-markdown').Transform} FromMarkdownTransform
- *
- * @typedef {import('mdast-util-to-markdown').ConstructName} ConstructName
- * @typedef {import('mdast-util-to-markdown').Options} ToMarkdownExtension
- *
- * @typedef {import('mdast-util-find-and-replace').ReplaceFunction} ReplaceFunction
- * @typedef {import('mdast-util-find-and-replace').RegExpMatchObject} RegExpMatchObject
+ * @import {RegExpMatchObject, ReplaceFunction} from 'mdast-util-find-and-replace'
+ * @import {CompileContext, Extension as FromMarkdownExtension, Handle as FromMarkdownHandle, Transform as FromMarkdownTransform} from 'mdast-util-from-markdown'
+ * @import {ConstructName, Options as ToMarkdownExtension} from 'mdast-util-to-markdown'
+ * @import {Link, PhrasingContent} from 'mdast'
  */
 
 
@@ -9774,53 +8973,65 @@ const inConstruct = 'phrasing';
 /** @type {Array<ConstructName>} */
 const notInConstruct = ['autolink', 'link', 'image', 'label'];
 
-// To do: next major: expose functions instead of extensions.
-
 /**
- * Extension for `mdast-util-from-markdown` to enable GFM autolink literals.
+ * Create an extension for `mdast-util-from-markdown` to enable GFM autolink
+ * literals in markdown.
  *
- * @type {FromMarkdownExtension}
+ * @returns {FromMarkdownExtension}
+ *   Extension for `mdast-util-to-markdown` to enable GFM autolink literals.
  */
-const gfmAutolinkLiteralFromMarkdown = {
-  transforms: [transformGfmAutolinkLiterals],
-  enter: {
-    literalAutolink: enterLiteralAutolink,
-    literalAutolinkEmail: enterLiteralAutolinkValue,
-    literalAutolinkHttp: enterLiteralAutolinkValue,
-    literalAutolinkWww: enterLiteralAutolinkValue
-  },
-  exit: {
-    literalAutolink: exitLiteralAutolink,
-    literalAutolinkEmail: exitLiteralAutolinkEmail,
-    literalAutolinkHttp: exitLiteralAutolinkHttp,
-    literalAutolinkWww: exitLiteralAutolinkWww
+function gfmAutolinkLiteralFromMarkdown() {
+  return {
+    transforms: [transformGfmAutolinkLiterals],
+    enter: {
+      literalAutolink: enterLiteralAutolink,
+      literalAutolinkEmail: enterLiteralAutolinkValue,
+      literalAutolinkHttp: enterLiteralAutolinkValue,
+      literalAutolinkWww: enterLiteralAutolinkValue
+    },
+    exit: {
+      literalAutolink: exitLiteralAutolink,
+      literalAutolinkEmail: exitLiteralAutolinkEmail,
+      literalAutolinkHttp: exitLiteralAutolinkHttp,
+      literalAutolinkWww: exitLiteralAutolinkWww
+    }
   }
-};
+}
 
 /**
- * Extension for `mdast-util-to-markdown` to enable GFM autolink literals.
+ * Create an extension for `mdast-util-to-markdown` to enable GFM autolink
+ * literals in markdown.
  *
- * @type {ToMarkdownExtension}
+ * @returns {ToMarkdownExtension}
+ *   Extension for `mdast-util-to-markdown` to enable GFM autolink literals.
  */
-const gfmAutolinkLiteralToMarkdown = {
-  unsafe: [
-    {
-      character: '@',
-      before: '[+\\-.\\w]',
-      after: '[\\-.\\w]',
-      inConstruct,
-      notInConstruct
-    },
-    {
-      character: '.',
-      before: '[Ww]',
-      after: '[\\-.\\w]',
-      inConstruct,
-      notInConstruct
-    },
-    {character: ':', before: '[ps]', after: '\\/', inConstruct, notInConstruct}
-  ]
-};
+function gfmAutolinkLiteralToMarkdown() {
+  return {
+    unsafe: [
+      {
+        character: '@',
+        before: '[+\\-.\\w]',
+        after: '[\\-.\\w]',
+        inConstruct,
+        notInConstruct
+      },
+      {
+        character: '.',
+        before: '[Ww]',
+        after: '[\\-.\\w]',
+        inConstruct,
+        notInConstruct
+      },
+      {
+        character: ':',
+        before: '[ps]',
+        after: '\\/',
+        inConstruct,
+        notInConstruct
+      }
+    ]
+  }
+}
 
 /**
  * @this {CompileContext}
@@ -9852,7 +9063,8 @@ function exitLiteralAutolinkHttp(token) {
  */
 function exitLiteralAutolinkWww(token) {
   this.config.exit.data.call(this, token);
-  const node = /** @type {Link} */ (this.stack[this.stack.length - 1]);
+  const node = this.stack[this.stack.length - 1];
+  ok(node.type === 'link');
   node.url = 'http://' + this.sliceSerialize(token);
 }
 
@@ -9878,7 +9090,7 @@ function transformGfmAutolinkLiterals(tree) {
     tree,
     [
       [/(https?:\/\/|www(?=\.))([-.\w]+)([^ \t\r\n]*)/gi, findUrl],
-      [/([-.\w+]+)@([-\w]+(?:\.[-\w]+)+)/g, findEmail]
+      [/(?<=^|\s|\p{P}|\p{S})([-.\w+]+)@([-\w]+(?:\.[-\w]+)+)/gu, findEmail]
     ],
     {ignore: ['link', 'linkReference']}
   );
@@ -9891,7 +9103,7 @@ function transformGfmAutolinkLiterals(tree) {
  * @param {string} domain
  * @param {string} path
  * @param {RegExpMatchObject} match
- * @returns {Link | Array<PhrasingContent> | false}
+ * @returns {Array<PhrasingContent> | Link | false}
  */
 // eslint-disable-next-line max-params
 function findUrl(_, protocol, domain, path, match) {
@@ -10020,64 +9232,85 @@ function previous(match, email) {
     (match.index === 0 ||
       unicodeWhitespace(code) ||
       unicodePunctuation(code)) &&
+    // If it’s an email, the previous character should not be a slash.
     (!email || code !== 47)
   )
 }
 
 /**
- * @typedef {import('mdast').FootnoteReference} FootnoteReference
- * @typedef {import('mdast').FootnoteDefinition} FootnoteDefinition
- * @typedef {import('mdast-util-from-markdown').CompileContext} CompileContext
- * @typedef {import('mdast-util-from-markdown').Extension} FromMarkdownExtension
- * @typedef {import('mdast-util-from-markdown').Handle} FromMarkdownHandle
- * @typedef {import('mdast-util-to-markdown').Options} ToMarkdownExtension
- * @typedef {import('mdast-util-to-markdown').Handle} ToMarkdownHandle
- * @typedef {import('mdast-util-to-markdown').Map} Map
+ * Normalize an identifier (as found in references, definitions).
+ *
+ * Collapses markdown whitespace, trim, and then lower- and uppercase.
+ *
+ * Some characters are considered “uppercase”, such as U+03F4 (`ϴ`), but if their
+ * lowercase counterpart (U+03B8 (`θ`)) is uppercased will result in a different
+ * uppercase character (U+0398 (`Θ`)).
+ * So, to get a canonical form, we perform both lower- and uppercase.
+ *
+ * Using uppercase last makes sure keys will never interact with default
+ * prototypal values (such as `constructor`): nothing in the prototype of
+ * `Object` is uppercase.
+ *
+ * @param {string} value
+ *   Identifier to normalize.
+ * @returns {string}
+ *   Normalized identifier.
+ */
+function normalizeIdentifier(value) {
+  return value
+  // Collapse markdown whitespace.
+  .replace(/[\t\n\r ]+/g, " ")
+  // Trim.
+  .replace(/^ | $/g, '')
+  // Some characters are considered “uppercase”, but if their lowercase
+  // counterpart is uppercased will result in a different uppercase
+  // character.
+  // Hence, to get that form, we perform both lower- and uppercase.
+  // Upper case makes sure keys will not interact with default prototypal
+  // methods: no method is uppercase.
+  .toLowerCase().toUpperCase();
+}
+
+/**
+ * @import {
+ *   CompileContext,
+ *   Extension as FromMarkdownExtension,
+ *   Handle as FromMarkdownHandle
+ * } from 'mdast-util-from-markdown'
+ * @import {ToMarkdownOptions} from 'mdast-util-gfm-footnote'
+ * @import {
+ *   Handle as ToMarkdownHandle,
+ *   Map,
+ *   Options as ToMarkdownExtension
+ * } from 'mdast-util-to-markdown'
+ * @import {FootnoteDefinition, FootnoteReference} from 'mdast'
  */
 
 
 footnoteReference.peek = footnoteReferencePeek;
 
-// To do: next major: rename `context` -> `state`, `safeOptions` to `info`, use
-// utilities on `state`.
-
 /**
- * Create an extension for `mdast-util-from-markdown` to enable GFM footnotes
- * in markdown.
- *
- * @returns {FromMarkdownExtension}
- *   Extension for `mdast-util-from-markdown`.
+ * @this {CompileContext}
+ * @type {FromMarkdownHandle}
  */
-function gfmFootnoteFromMarkdown() {
-  return {
-    enter: {
-      gfmFootnoteDefinition: enterFootnoteDefinition,
-      gfmFootnoteDefinitionLabelString: enterFootnoteDefinitionLabelString,
-      gfmFootnoteCall: enterFootnoteCall,
-      gfmFootnoteCallString: enterFootnoteCallString
-    },
-    exit: {
-      gfmFootnoteDefinition: exitFootnoteDefinition,
-      gfmFootnoteDefinitionLabelString: exitFootnoteDefinitionLabelString,
-      gfmFootnoteCall: exitFootnoteCall,
-      gfmFootnoteCallString: exitFootnoteCallString
-    }
-  }
+function enterFootnoteCallString() {
+  this.buffer();
 }
 
 /**
- * Create an extension for `mdast-util-to-markdown` to enable GFM footnotes
- * in markdown.
- *
- * @returns {ToMarkdownExtension}
- *   Extension for `mdast-util-to-markdown`.
+ * @this {CompileContext}
+ * @type {FromMarkdownHandle}
  */
-function gfmFootnoteToMarkdown() {
-  return {
-    // This is on by default already.
-    unsafe: [{character: '[', inConstruct: ['phrasing', 'label', 'reference']}],
-    handlers: {footnoteDefinition, footnoteReference}
-  }
+function enterFootnoteCall(token) {
+  this.enter({type: 'footnoteReference', identifier: '', label: ''}, token);
+}
+
+/**
+ * @this {CompileContext}
+ * @type {FromMarkdownHandle}
+ */
+function enterFootnoteDefinitionLabelString() {
+  this.buffer();
 }
 
 /**
@@ -10095,62 +9328,14 @@ function enterFootnoteDefinition(token) {
  * @this {CompileContext}
  * @type {FromMarkdownHandle}
  */
-function enterFootnoteDefinitionLabelString() {
-  this.buffer();
-}
-
-/**
- * @this {CompileContext}
- * @type {FromMarkdownHandle}
- */
-function exitFootnoteDefinitionLabelString(token) {
-  const label = this.resume();
-  const node = /** @type {FootnoteDefinition} */ (
-    this.stack[this.stack.length - 1]
-  );
-  node.label = label;
-  node.identifier = normalizeIdentifier(
-    this.sliceSerialize(token)
-  ).toLowerCase();
-}
-
-/**
- * @this {CompileContext}
- * @type {FromMarkdownHandle}
- */
-function exitFootnoteDefinition(token) {
-  this.exit(token);
-}
-
-/**
- * @this {CompileContext}
- * @type {FromMarkdownHandle}
- */
-function enterFootnoteCall(token) {
-  this.enter({type: 'footnoteReference', identifier: '', label: ''}, token);
-}
-
-/**
- * @this {CompileContext}
- * @type {FromMarkdownHandle}
- */
-function enterFootnoteCallString() {
-  this.buffer();
-}
-
-/**
- * @this {CompileContext}
- * @type {FromMarkdownHandle}
- */
 function exitFootnoteCallString(token) {
   const label = this.resume();
-  const node = /** @type {FootnoteDefinition} */ (
-    this.stack[this.stack.length - 1]
-  );
-  node.label = label;
+  const node = this.stack[this.stack.length - 1];
+  ok(node.type === 'footnoteReference');
   node.identifier = normalizeIdentifier(
     this.sliceSerialize(token)
   ).toLowerCase();
+  node.label = label;
 }
 
 /**
@@ -10162,25 +9347,25 @@ function exitFootnoteCall(token) {
 }
 
 /**
- * @type {ToMarkdownHandle}
- * @param {FootnoteReference} node
+ * @this {CompileContext}
+ * @type {FromMarkdownHandle}
  */
-function footnoteReference(node, _, context, safeOptions) {
-  const tracker = track(safeOptions);
-  let value = tracker.move('[^');
-  const exit = context.enter('footnoteReference');
-  const subexit = context.enter('reference');
-  value += tracker.move(
-    safe(context, association(node), {
-      ...tracker.current(),
-      before: value,
-      after: ']'
-    })
-  );
-  subexit();
-  exit();
-  value += tracker.move(']');
-  return value
+function exitFootnoteDefinitionLabelString(token) {
+  const label = this.resume();
+  const node = this.stack[this.stack.length - 1];
+  ok(node.type === 'footnoteDefinition');
+  node.identifier = normalizeIdentifier(
+    this.sliceSerialize(token)
+  ).toLowerCase();
+  node.label = label;
+}
+
+/**
+ * @this {CompileContext}
+ * @type {FromMarkdownHandle}
+ */
+function exitFootnoteDefinition(token) {
+  this.exit(token);
 }
 
 /** @type {ToMarkdownHandle} */
@@ -10190,39 +9375,110 @@ function footnoteReferencePeek() {
 
 /**
  * @type {ToMarkdownHandle}
- * @param {FootnoteDefinition} node
+ * @param {FootnoteReference} node
  */
-function footnoteDefinition(node, _, context, safeOptions) {
-  const tracker = track(safeOptions);
+function footnoteReference(node, _, state, info) {
+  const tracker = state.createTracker(info);
   let value = tracker.move('[^');
-  const exit = context.enter('footnoteDefinition');
-  const subexit = context.enter('label');
+  const exit = state.enter('footnoteReference');
+  const subexit = state.enter('reference');
   value += tracker.move(
-    safe(context, association(node), {
-      ...tracker.current(),
-      before: value,
-      after: ']'
-    })
+    state.safe(state.associationId(node), {after: ']', before: value})
   );
   subexit();
-  value += tracker.move(
-    ']:' + (node.children && node.children.length > 0 ? ' ' : '')
-  );
-  tracker.shift(4);
-  value += tracker.move(
-    indentLines(containerFlow(node, context, tracker.current()), map)
-  );
   exit();
-
+  value += tracker.move(']');
   return value
 }
 
-/** @type {Map} */
-function map(line, index, blank) {
-  if (index === 0) {
-    return line
+/**
+ * Create an extension for `mdast-util-from-markdown` to enable GFM footnotes
+ * in markdown.
+ *
+ * @returns {FromMarkdownExtension}
+ *   Extension for `mdast-util-from-markdown`.
+ */
+function gfmFootnoteFromMarkdown() {
+  return {
+    enter: {
+      gfmFootnoteCallString: enterFootnoteCallString,
+      gfmFootnoteCall: enterFootnoteCall,
+      gfmFootnoteDefinitionLabelString: enterFootnoteDefinitionLabelString,
+      gfmFootnoteDefinition: enterFootnoteDefinition
+    },
+    exit: {
+      gfmFootnoteCallString: exitFootnoteCallString,
+      gfmFootnoteCall: exitFootnoteCall,
+      gfmFootnoteDefinitionLabelString: exitFootnoteDefinitionLabelString,
+      gfmFootnoteDefinition: exitFootnoteDefinition
+    }
+  }
+}
+
+/**
+ * Create an extension for `mdast-util-to-markdown` to enable GFM footnotes
+ * in markdown.
+ *
+ * @param {ToMarkdownOptions | null | undefined} [options]
+ *   Configuration (optional).
+ * @returns {ToMarkdownExtension}
+ *   Extension for `mdast-util-to-markdown`.
+ */
+function gfmFootnoteToMarkdown(options) {
+  // To do: next major: change default.
+  let firstLineBlank = false;
+
+  if (options && options.firstLineBlank) {
+    firstLineBlank = true;
   }
 
+  return {
+    handlers: {footnoteDefinition, footnoteReference},
+    // This is on by default already.
+    unsafe: [{character: '[', inConstruct: ['label', 'phrasing', 'reference']}]
+  }
+
+  /**
+   * @type {ToMarkdownHandle}
+   * @param {FootnoteDefinition} node
+   */
+  function footnoteDefinition(node, _, state, info) {
+    const tracker = state.createTracker(info);
+    let value = tracker.move('[^');
+    const exit = state.enter('footnoteDefinition');
+    const subexit = state.enter('label');
+    value += tracker.move(
+      state.safe(state.associationId(node), {before: value, after: ']'})
+    );
+    subexit();
+
+    value += tracker.move(']:');
+
+    if (node.children && node.children.length > 0) {
+      tracker.shift(4);
+
+      value += tracker.move(
+        (firstLineBlank ? '\n' : ' ') +
+          state.indentLines(
+            state.containerFlow(node, tracker.current()),
+            firstLineBlank ? mapAll : mapExceptFirst
+          )
+      );
+    }
+
+    exit();
+
+    return value
+  }
+}
+
+/** @type {Map} */
+function mapExceptFirst(line, index, blank) {
+  return index === 0 ? line : mapAll(line, index, blank)
+}
+
+/** @type {Map} */
+function mapAll(line, index, blank) {
   return (blank ? '' : '    ') + line
 }
 
@@ -10234,13 +9490,9 @@ function map(line, index, blank) {
  * @typedef {import('mdast-util-from-markdown').Handle} FromMarkdownHandle
  *
  * @typedef {import('mdast-util-to-markdown').ConstructName} ConstructName
- * @typedef {import('mdast-util-to-markdown').Options} ToMarkdownExtension
  * @typedef {import('mdast-util-to-markdown').Handle} ToMarkdownHandle
+ * @typedef {import('mdast-util-to-markdown').Options} ToMarkdownExtension
  */
-
-
-// To do: next major: expose functions.
-// To do: next major: use `state`, state utilities.
 
 /**
  * List of constructs that occur in phrasing (paragraphs, headings), but cannot
@@ -10264,31 +9516,39 @@ const constructsWithoutStrikethrough = [
 handleDelete.peek = peekDelete;
 
 /**
- * Extension for `mdast-util-from-markdown` to enable GFM strikethrough.
+ * Create an extension for `mdast-util-from-markdown` to enable GFM
+ * strikethrough in markdown.
  *
- * @type {FromMarkdownExtension}
+ * @returns {FromMarkdownExtension}
+ *   Extension for `mdast-util-from-markdown` to enable GFM strikethrough.
  */
-const gfmStrikethroughFromMarkdown = {
-  canContainEols: ['delete'],
-  enter: {strikethrough: enterStrikethrough},
-  exit: {strikethrough: exitStrikethrough}
-};
+function gfmStrikethroughFromMarkdown() {
+  return {
+    canContainEols: ['delete'],
+    enter: {strikethrough: enterStrikethrough},
+    exit: {strikethrough: exitStrikethrough}
+  }
+}
 
 /**
- * Extension for `mdast-util-to-markdown` to enable GFM strikethrough.
+ * Create an extension for `mdast-util-to-markdown` to enable GFM
+ * strikethrough in markdown.
  *
- * @type {ToMarkdownExtension}
+ * @returns {ToMarkdownExtension}
+ *   Extension for `mdast-util-to-markdown` to enable GFM strikethrough.
  */
-const gfmStrikethroughToMarkdown = {
-  unsafe: [
-    {
-      character: '~',
-      inConstruct: 'phrasing',
-      notInConstruct: constructsWithoutStrikethrough
-    }
-  ],
-  handlers: {delete: handleDelete}
-};
+function gfmStrikethroughToMarkdown() {
+  return {
+    unsafe: [
+      {
+        character: '~',
+        inConstruct: 'phrasing',
+        notInConstruct: constructsWithoutStrikethrough
+      }
+    ],
+    handlers: {delete: handleDelete}
+  }
+}
 
 /**
  * @this {CompileContext}
@@ -10310,11 +9570,11 @@ function exitStrikethrough(token) {
  * @type {ToMarkdownHandle}
  * @param {Delete} node
  */
-function handleDelete(node, _, context, safeOptions) {
-  const tracker = track(safeOptions);
-  const exit = context.enter('strikethrough');
+function handleDelete(node, _, state, info) {
+  const tracker = state.createTracker(info);
+  const exit = state.enter('strikethrough');
   let value = tracker.move('~~');
-  value += containerPhrasing(node, context, {
+  value += state.containerPhrasing(node, {
     ...tracker.current(),
     before: value,
     after: '~'
@@ -10329,19 +9589,18 @@ function peekDelete() {
   return '~'
 }
 
+// To do: next major: remove.
+/**
+ * @typedef {Options} MarkdownTableOptions
+ *   Configuration.
+ */
+
 /**
  * @typedef Options
- *   Configuration (optional).
- * @property {string|null|ReadonlyArray<string|null|undefined>} [align]
- *   One style for all columns, or styles for their respective columns.
- *   Each style is either `'l'` (left), `'r'` (right), or `'c'` (center).
- *   Other values are treated as `''`, which doesn’t place the colon in the
- *   alignment row but does align left.
- *   *Only the lowercased first character is used, so `Right` is fine.*
- * @property {boolean} [padding=true]
- *   Whether to add a space of padding between delimiters and cells.
- *
- *   When `true`, there is padding:
+ *   Configuration.
+ * @property {boolean | null | undefined} [alignDelimiters=true]
+ *   Whether to align the delimiters (default: `true`);
+ *   they are aligned by default:
  *
  *   ```markdown
  *   | Alpha | B     |
@@ -10349,36 +9608,22 @@ function peekDelete() {
  *   | C     | Delta |
  *   ```
  *
- *   When `false`, there is no padding:
+ *   Pass `false` to make them staggered:
  *
  *   ```markdown
- *   |Alpha|B    |
- *   |-----|-----|
- *   |C    |Delta|
+ *   | Alpha | B |
+ *   | - | - |
+ *   | C | Delta |
  *   ```
- * @property {boolean} [delimiterStart=true]
- *   Whether to begin each row with the delimiter.
- *
- *   > 👉 **Note**: please don’t use this: it could create fragile structures
- *   > that aren’t understandable to some markdown parsers.
- *
- *   When `true`, there are starting delimiters:
- *
- *   ```markdown
- *   | Alpha | B     |
- *   | ----- | ----- |
- *   | C     | Delta |
- *   ```
- *
- *   When `false`, there are no starting delimiters:
- *
- *   ```markdown
- *   Alpha | B     |
- *   ----- | ----- |
- *   C     | Delta |
- *   ```
- * @property {boolean} [delimiterEnd=true]
- *   Whether to end each row with the delimiter.
+ * @property {ReadonlyArray<string | null | undefined> | string | null | undefined} [align]
+ *   How to align columns (default: `''`);
+ *   one style for all columns or styles for their respective columns;
+ *   each style is either `'l'` (left), `'r'` (right), or `'c'` (center);
+ *   other values are treated as `''`, which doesn’t place the colon in the
+ *   alignment row but does align left;
+ *   *only the lowercased first character is used, so `Right` is fine.*
+ * @property {boolean | null | undefined} [delimiterEnd=true]
+ *   Whether to end each row with the delimiter (default: `true`).
  *
  *   > 👉 **Note**: please don’t use this: it could create fragile structures
  *   > that aren’t understandable to some markdown parsers.
@@ -10398,9 +9643,13 @@ function peekDelete() {
  *   | ----- | -----
  *   | C     | Delta
  *   ```
- * @property {boolean} [alignDelimiters=true]
- *   Whether to align the delimiters.
- *   By default, they are aligned:
+ * @property {boolean | null | undefined} [delimiterStart=true]
+ *   Whether to begin each row with the delimiter (default: `true`).
+ *
+ *   > 👉 **Note**: please don’t use this: it could create fragile structures
+ *   > that aren’t understandable to some markdown parsers.
+ *
+ *   When `true`, there are starting delimiters:
  *
  *   ```markdown
  *   | Alpha | B     |
@@ -10408,21 +9657,40 @@ function peekDelete() {
  *   | C     | Delta |
  *   ```
  *
- *   Pass `false` to make them staggered:
+ *   When `false`, there are no starting delimiters:
  *
  *   ```markdown
- *   | Alpha | B |
- *   | - | - |
- *   | C | Delta |
+ *   Alpha | B     |
+ *   ----- | ----- |
+ *   C     | Delta |
  *   ```
- * @property {(value: string) => number} [stringLength]
- *   Function to detect the length of table cell content.
- *   This is used when aligning the delimiters (`|`) between table cells.
- *   Full-width characters and emoji mess up delimiter alignment when viewing
- *   the markdown source.
- *   To fix this, you can pass this function, which receives the cell content
- *   and returns its “visible” size.
- *   Note that what is and isn’t visible depends on where the text is displayed.
+ * @property {boolean | null | undefined} [padding=true]
+ *   Whether to add a space of padding between delimiters and cells
+ *   (default: `true`).
+ *
+ *   When `true`, there is padding:
+ *
+ *   ```markdown
+ *   | Alpha | B     |
+ *   | ----- | ----- |
+ *   | C     | Delta |
+ *   ```
+ *
+ *   When `false`, there is no padding:
+ *
+ *   ```markdown
+ *   |Alpha|B    |
+ *   |-----|-----|
+ *   |C    |Delta|
+ *   ```
+ * @property {((value: string) => number) | null | undefined} [stringLength]
+ *   Function to detect the length of table cell content (optional);
+ *   this is used when aligning the delimiters (`|`) between table cells;
+ *   full-width characters and emoji mess up delimiter alignment when viewing
+ *   the markdown source;
+ *   to fix this, you can pass this function,
+ *   which receives the cell content and returns its “visible” size;
+ *   note that what is and isn’t visible depends on where the text is displayed.
  *
  *   Without such a function, the following:
  *
@@ -10469,23 +9737,32 @@ function peekDelete() {
  */
 
 /**
- * @typedef {Options} MarkdownTableOptions
- * @todo
- *   Remove next major.
+ * @param {string} value
+ *   Cell value.
+ * @returns {number}
+ *   Cell size.
  */
+function defaultStringLength(value) {
+  return value.length
+}
 
 /**
- * Generate a markdown ([GFM](https://docs.github.com/en/github/writing-on-github/working-with-advanced-formatting/organizing-information-with-tables)) table..
+ * Generate a markdown
+ * ([GFM](https://docs.github.com/en/github/writing-on-github/working-with-advanced-formatting/organizing-information-with-tables))
+ * table.
  *
- * @param {ReadonlyArray<ReadonlyArray<string|null|undefined>>} table
+ * @param {ReadonlyArray<ReadonlyArray<string | null | undefined>>} table
  *   Table data (matrix of strings).
- * @param {Options} [options]
+ * @param {Readonly<Options> | null | undefined} [options]
  *   Configuration (optional).
  * @returns {string}
+ *   Result.
  */
-function markdownTable(table, options = {}) {
-  const align = (options.align || []).concat();
-  const stringLength = options.stringLength || defaultStringLength;
+function markdownTable(table, options) {
+  const settings = options || {};
+  // To do: next major: change to spread.
+  const align = (settings.align || []).concat();
+  const stringLength = settings.stringLength || defaultStringLength;
   /** @type {Array<number>} Character codes as symbols for alignment per column. */
   const alignments = [];
   /** @type {Array<Array<string>>} Cells per row. */
@@ -10513,7 +9790,7 @@ function markdownTable(table, options = {}) {
     while (++columnIndex < table[rowIndex].length) {
       const cell = serialize(table[rowIndex][columnIndex]);
 
-      if (options.alignDelimiters !== false) {
+      if (settings.alignDelimiters !== false) {
         const size = stringLength(cell);
         sizes[columnIndex] = size;
 
@@ -10570,7 +9847,7 @@ function markdownTable(table, options = {}) {
 
     // There *must* be at least one hyphen-minus in each alignment cell.
     let size =
-      options.alignDelimiters === false
+      settings.alignDelimiters === false
         ? 1
         : Math.max(
             1,
@@ -10579,7 +9856,7 @@ function markdownTable(table, options = {}) {
 
     const cell = before + '-'.repeat(size) + after;
 
-    if (options.alignDelimiters !== false) {
+    if (settings.alignDelimiters !== false) {
       size = before.length + size + after.length;
 
       if (size > longestCellByColumn[columnIndex]) {
@@ -10612,7 +9889,7 @@ function markdownTable(table, options = {}) {
       let before = '';
       let after = '';
 
-      if (options.alignDelimiters !== false) {
+      if (settings.alignDelimiters !== false) {
         const size =
           longestCellByColumn[columnIndex] - (sizes[columnIndex] || 0);
         const code = alignments[columnIndex];
@@ -10632,36 +9909,36 @@ function markdownTable(table, options = {}) {
         }
       }
 
-      if (options.delimiterStart !== false && !columnIndex) {
+      if (settings.delimiterStart !== false && !columnIndex) {
         line.push('|');
       }
 
       if (
-        options.padding !== false &&
+        settings.padding !== false &&
         // Don’t add the opening space if we’re not aligning and the cell is
         // empty: there will be a closing space.
-        !(options.alignDelimiters === false && cell === '') &&
-        (options.delimiterStart !== false || columnIndex)
+        !(settings.alignDelimiters === false && cell === '') &&
+        (settings.delimiterStart !== false || columnIndex)
       ) {
         line.push(' ');
       }
 
-      if (options.alignDelimiters !== false) {
+      if (settings.alignDelimiters !== false) {
         line.push(before);
       }
 
       line.push(cell);
 
-      if (options.alignDelimiters !== false) {
+      if (settings.alignDelimiters !== false) {
         line.push(after);
       }
 
-      if (options.padding !== false) {
+      if (settings.padding !== false) {
         line.push(' ');
       }
 
       if (
-        options.delimiterEnd !== false ||
+        settings.delimiterEnd !== false ||
         columnIndex !== mostCellsPerRow - 1
       ) {
         line.push('|');
@@ -10669,7 +9946,7 @@ function markdownTable(table, options = {}) {
     }
 
     lines.push(
-      options.delimiterEnd === false
+      settings.delimiterEnd === false
         ? line.join('').replace(/ +$/, '')
         : line.join('')
     );
@@ -10679,24 +9956,20 @@ function markdownTable(table, options = {}) {
 }
 
 /**
- * @param {string|null|undefined} [value]
+ * @param {string | null | undefined} [value]
+ *   Value to serialize.
  * @returns {string}
+ *   Result.
  */
 function serialize(value) {
   return value === null || value === undefined ? '' : String(value)
 }
 
 /**
- * @param {string} value
+ * @param {string | null | undefined} value
+ *   Value.
  * @returns {number}
- */
-function defaultStringLength(value) {
-  return value.length
-}
-
-/**
- * @param {string|null|undefined} value
- * @returns {number}
+ *   Alignment.
  */
 function toAlignment(value) {
   const code = typeof value === 'string' ? value.codePointAt(0) : 0;
@@ -10704,19 +9977,19 @@ function toAlignment(value) {
   return code === 67 /* `C` */ || code === 99 /* `c` */
     ? 99 /* `c` */
     : code === 76 /* `L` */ || code === 108 /* `l` */
-    ? 108 /* `l` */
-    : code === 82 /* `R` */ || code === 114 /* `r` */
-    ? 114 /* `r` */
-    : 0
+      ? 108 /* `l` */
+      : code === 82 /* `R` */ || code === 114 /* `r` */
+        ? 114 /* `r` */
+        : 0
 }
 
 /**
- * @typedef {import('mdast').Table} Table
- * @typedef {import('mdast').TableRow} TableRow
- * @typedef {import('mdast').TableCell} TableCell
  * @typedef {import('mdast').InlineCode} InlineCode
+ * @typedef {import('mdast').Table} Table
+ * @typedef {import('mdast').TableCell} TableCell
+ * @typedef {import('mdast').TableRow} TableRow
  *
- * @typedef {import('markdown-table').MarkdownTableOptions} MarkdownTableOptions
+ * @typedef {import('markdown-table').Options} MarkdownTableOptions
  *
  * @typedef {import('mdast-util-from-markdown').CompileContext} CompileContext
  * @typedef {import('mdast-util-from-markdown').Extension} FromMarkdownExtension
@@ -10724,53 +9997,53 @@ function toAlignment(value) {
  *
  * @typedef {import('mdast-util-to-markdown').Options} ToMarkdownExtension
  * @typedef {import('mdast-util-to-markdown').Handle} ToMarkdownHandle
- * @typedef {import('mdast-util-to-markdown').Context} ToMarkdownContext
- * @typedef {import('mdast-util-to-markdown').SafeOptions} SafeOptions
+ * @typedef {import('mdast-util-to-markdown').State} State
+ * @typedef {import('mdast-util-to-markdown').Info} Info
  */
 
-
-// To do: next major: use `state` and `state` utilities from `mdast-util-to-markdown`.
-// To do: next major: use `defaultHandlers.inlineCode`.
-// To do: next major: expose functions.
 
 /**
- * Extension for `mdast-util-from-markdown` to enable GFM tables.
+ * Create an extension for `mdast-util-from-markdown` to enable GFM tables in
+ * markdown.
  *
- * @type {FromMarkdownExtension}
+ * @returns {FromMarkdownExtension}
+ *   Extension for `mdast-util-from-markdown` to enable GFM tables.
  */
-const gfmTableFromMarkdown = {
-  enter: {
-    table: enterTable,
-    tableData: enterCell,
-    tableHeader: enterCell,
-    tableRow: enterRow
-  },
-  exit: {
-    codeText: exitCodeText,
-    table: exitTable,
-    tableData: exit,
-    tableHeader: exit,
-    tableRow: exit
+function gfmTableFromMarkdown() {
+  return {
+    enter: {
+      table: enterTable,
+      tableData: enterCell,
+      tableHeader: enterCell,
+      tableRow: enterRow
+    },
+    exit: {
+      codeText: exitCodeText,
+      table: exitTable,
+      tableData: exit,
+      tableHeader: exit,
+      tableRow: exit
+    }
   }
-};
+}
 
 /**
  * @this {CompileContext}
  * @type {FromMarkdownHandle}
  */
 function enterTable(token) {
-  /** @type {Array<'left' | 'right' | 'center' | 'none'>} */
-  // @ts-expect-error: `align` is custom.
   const align = token._align;
   this.enter(
     {
       type: 'table',
-      align: align.map((d) => (d === 'none' ? null : d)),
+      align: align.map(function (d) {
+        return d === 'none' ? null : d
+      }),
       children: []
     },
     token
   );
-  this.setData('inTable', true);
+  this.data.inTable = true;
 }
 
 /**
@@ -10779,7 +10052,7 @@ function enterTable(token) {
  */
 function exitTable(token) {
   this.exit(token);
-  this.setData('inTable');
+  this.data.inTable = undefined;
 }
 
 /**
@@ -10815,11 +10088,12 @@ function enterCell(token) {
 function exitCodeText(token) {
   let value = this.resume();
 
-  if (this.getData('inTable')) {
+  if (this.data.inTable) {
     value = value.replace(/\\([\\|])/g, replace);
   }
 
-  const node = /** @type {InlineCode} */ (this.stack[this.stack.length - 1]);
+  const node = this.stack[this.stack.length - 1];
+  ok(node.type === 'inlineCode');
   node.value = value;
   this.exit(token);
 }
@@ -10870,10 +10144,10 @@ function gfmTableToMarkdown(options) {
       {atBreak: true, character: '-', after: '[:|-]'}
     ],
     handlers: {
+      inlineCode: inlineCodeWithTable,
       table: handleTable,
-      tableRow: handleTableRow,
       tableCell: handleTableCell,
-      inlineCode: inlineCodeWithTable
+      tableRow: handleTableRow
     }
   }
 
@@ -10881,11 +10155,8 @@ function gfmTableToMarkdown(options) {
    * @type {ToMarkdownHandle}
    * @param {Table} node
    */
-  function handleTable(node, _, context, safeOptions) {
-    return serializeData(
-      handleTableAsData(node, context, safeOptions),
-      node.align
-    )
+  function handleTable(node, _, state, info) {
+    return serializeData(handleTableAsData(node, state, info), node.align)
   }
 
   /**
@@ -10896,8 +10167,8 @@ function gfmTableToMarkdown(options) {
    * @type {ToMarkdownHandle}
    * @param {TableRow} node
    */
-  function handleTableRow(node, _, context, safeOptions) {
-    const row = handleTableRowAsData(node, context, safeOptions);
+  function handleTableRow(node, _, state, info) {
+    const row = handleTableRowAsData(node, state, info);
     const value = serializeData([row]);
     // `markdown-table` will always add an align row
     return value.slice(0, value.indexOf('\n'))
@@ -10907,11 +10178,11 @@ function gfmTableToMarkdown(options) {
    * @type {ToMarkdownHandle}
    * @param {TableCell} node
    */
-  function handleTableCell(node, _, context, safeOptions) {
-    const exit = context.enter('tableCell');
-    const subexit = context.enter('phrasing');
-    const value = containerPhrasing(node, context, {
-      ...safeOptions,
+  function handleTableCell(node, _, state, info) {
+    const exit = state.enter('tableCell');
+    const subexit = state.enter('phrasing');
+    const value = state.containerPhrasing(node, {
+      ...info,
       before: around,
       after: around
     });
@@ -10938,22 +10209,18 @@ function gfmTableToMarkdown(options) {
 
   /**
    * @param {Table} node
-   * @param {ToMarkdownContext} context
-   * @param {SafeOptions} safeOptions
+   * @param {State} state
+   * @param {Info} info
    */
-  function handleTableAsData(node, context, safeOptions) {
+  function handleTableAsData(node, state, info) {
     const children = node.children;
     let index = -1;
     /** @type {Array<Array<string>>} */
     const result = [];
-    const subexit = context.enter('table');
+    const subexit = state.enter('table');
 
     while (++index < children.length) {
-      result[index] = handleTableRowAsData(
-        children[index],
-        context,
-        safeOptions
-      );
+      result[index] = handleTableRowAsData(children[index], state, info);
     }
 
     subexit();
@@ -10963,26 +10230,21 @@ function gfmTableToMarkdown(options) {
 
   /**
    * @param {TableRow} node
-   * @param {ToMarkdownContext} context
-   * @param {SafeOptions} safeOptions
+   * @param {State} state
+   * @param {Info} info
    */
-  function handleTableRowAsData(node, context, safeOptions) {
+  function handleTableRowAsData(node, state, info) {
     const children = node.children;
     let index = -1;
     /** @type {Array<string>} */
     const result = [];
-    const subexit = context.enter('tableRow');
+    const subexit = state.enter('tableRow');
 
     while (++index < children.length) {
       // Note: the positional info as used here is incorrect.
       // Making it correct would be impossible due to aligning cells?
       // And it would need copy/pasting `markdown-table` into this project.
-      result[index] = handleTableCell(
-        children[index],
-        node,
-        context,
-        safeOptions
-      );
+      result[index] = handleTableCell(children[index], node, state, info);
     }
 
     subexit();
@@ -10994,10 +10256,10 @@ function gfmTableToMarkdown(options) {
    * @type {ToMarkdownHandle}
    * @param {InlineCode} node
    */
-  function inlineCodeWithTable(node, parent, context) {
-    let value = inlineCode(node, parent, context);
+  function inlineCodeWithTable(node, parent, state) {
+    let value = handle.inlineCode(node, parent, state);
 
-    if (context.stack.includes('tableCell')) {
+    if (state.stack.includes('tableCell')) {
       value = value.replace(/\|/g, '\\$&');
     }
 
@@ -11006,11 +10268,8 @@ function gfmTableToMarkdown(options) {
 }
 
 /**
- * @typedef {import('mdast').Content} Content
  * @typedef {import('mdast').ListItem} ListItem
  * @typedef {import('mdast').Paragraph} Paragraph
- * @typedef {import('mdast').Parent} Parent
- * @typedef {import('mdast').Root} Root
  * @typedef {import('mdast-util-from-markdown').CompileContext} CompileContext
  * @typedef {import('mdast-util-from-markdown').Extension} FromMarkdownExtension
  * @typedef {import('mdast-util-from-markdown').Handle} FromMarkdownHandle
@@ -11019,41 +10278,45 @@ function gfmTableToMarkdown(options) {
  */
 
 
-// To do: next major: rename `context` -> `state`, `safeOptions` -> `info`, use
-// `track` from `state`.
-// To do: next major: replace exports with functions.
-// To do: next major: use `defaulthandlers.listItem`.
-
 /**
- * Extension for `mdast-util-from-markdown` to enable GFM task list items.
+ * Create an extension for `mdast-util-from-markdown` to enable GFM task
+ * list items in markdown.
  *
- * @type {FromMarkdownExtension}
+ * @returns {FromMarkdownExtension}
+ *   Extension for `mdast-util-from-markdown` to enable GFM task list items.
  */
-const gfmTaskListItemFromMarkdown = {
-  exit: {
-    taskListCheckValueChecked: exitCheck,
-    taskListCheckValueUnchecked: exitCheck,
-    paragraph: exitParagraphWithTaskListItem
+function gfmTaskListItemFromMarkdown() {
+  return {
+    exit: {
+      taskListCheckValueChecked: exitCheck,
+      taskListCheckValueUnchecked: exitCheck,
+      paragraph: exitParagraphWithTaskListItem
+    }
   }
-};
+}
 
 /**
- * Extension for `mdast-util-to-markdown` to enable GFM task list items.
+ * Create an extension for `mdast-util-to-markdown` to enable GFM task list
+ * items in markdown.
  *
- * @type {ToMarkdownExtension}
+ * @returns {ToMarkdownExtension}
+ *   Extension for `mdast-util-to-markdown` to enable GFM task list items.
  */
-const gfmTaskListItemToMarkdown = {
-  unsafe: [{atBreak: true, character: '-', after: '[:|-]'}],
-  handlers: {listItem: listItemWithTaskListItem}
-};
+function gfmTaskListItemToMarkdown() {
+  return {
+    unsafe: [{atBreak: true, character: '-', after: '[:|-]'}],
+    handlers: {listItem: listItemWithTaskListItem}
+  }
+}
 
 /**
  * @this {CompileContext}
  * @type {FromMarkdownHandle}
  */
 function exitCheck(token) {
-  const node = /** @type {ListItem} */ (this.stack[this.stack.length - 2]);
   // We’re always in a paragraph, in a list item.
+  const node = this.stack[this.stack.length - 2];
+  ok(node.type === 'listItem');
   node.checked = token.type === 'taskListCheckValueChecked';
 }
 
@@ -11062,14 +10325,15 @@ function exitCheck(token) {
  * @type {FromMarkdownHandle}
  */
 function exitParagraphWithTaskListItem(token) {
-  const parent = /** @type {Parents} */ (this.stack[this.stack.length - 2]);
+  const parent = this.stack[this.stack.length - 2];
 
   if (
     parent &&
     parent.type === 'listItem' &&
     typeof parent.checked === 'boolean'
   ) {
-    const node = /** @type {Paragraph} */ (this.stack[this.stack.length - 1]);
+    const node = this.stack[this.stack.length - 1];
+    ok(node.type === 'paragraph');
     const head = node.children[0];
 
     if (head && head.type === 'text') {
@@ -11112,19 +10376,19 @@ function exitParagraphWithTaskListItem(token) {
  * @type {ToMarkdownHandle}
  * @param {ListItem} node
  */
-function listItemWithTaskListItem(node, parent, context, safeOptions) {
+function listItemWithTaskListItem(node, parent, state, info) {
   const head = node.children[0];
   const checkable =
     typeof node.checked === 'boolean' && head && head.type === 'paragraph';
   const checkbox = '[' + (node.checked ? 'x' : ' ') + '] ';
-  const tracker = track(safeOptions);
+  const tracker = state.createTracker(info);
 
   if (checkable) {
     tracker.move(checkbox);
   }
 
-  let value = listItem(node, parent, context, {
-    ...safeOptions,
+  let value = handle.listItem(node, parent, state, {
+    ...info,
     ...tracker.current()
   });
 
@@ -11144,8 +10408,9 @@ function listItemWithTaskListItem(node, parent, context, safeOptions) {
 }
 
 /**
- * @typedef {import('mdast-util-from-markdown').Extension} FromMarkdownExtension
- * @typedef {import('mdast-util-to-markdown').Options} ToMarkdownExtension
+ * @import {Extension as FromMarkdownExtension} from 'mdast-util-from-markdown'
+ * @import {Options} from 'mdast-util-gfm'
+ * @import {Options as ToMarkdownExtension} from 'mdast-util-to-markdown'
  */
 
 
@@ -11159,11 +10424,11 @@ function listItemWithTaskListItem(node, parent, context, safeOptions) {
  */
 function gfmFromMarkdown() {
   return [
-    gfmAutolinkLiteralFromMarkdown,
+    gfmAutolinkLiteralFromMarkdown(),
     gfmFootnoteFromMarkdown(),
-    gfmStrikethroughFromMarkdown,
-    gfmTableFromMarkdown,
-    gfmTaskListItemFromMarkdown
+    gfmStrikethroughFromMarkdown(),
+    gfmTableFromMarkdown(),
+    gfmTaskListItemFromMarkdown()
   ]
 }
 
@@ -11172,7 +10437,7 @@ function gfmFromMarkdown() {
  * literals, footnotes, strikethrough, tables, tasklists).
  *
  * @param {Options | null | undefined} [options]
- *   Configuration.
+ *   Configuration (optional).
  * @returns {ToMarkdownExtension}
  *   Extension for `mdast-util-to-markdown` to enable GFM (autolink literals,
  *   footnotes, strikethrough, tables, tasklists).
@@ -11180,67 +10445,3105 @@ function gfmFromMarkdown() {
 function gfmToMarkdown(options) {
   return {
     extensions: [
-      gfmAutolinkLiteralToMarkdown,
-      gfmFootnoteToMarkdown(),
-      gfmStrikethroughToMarkdown,
+      gfmAutolinkLiteralToMarkdown(),
+      gfmFootnoteToMarkdown(options),
+      gfmStrikethroughToMarkdown(),
       gfmTableToMarkdown(options),
-      gfmTaskListItemToMarkdown
+      gfmTaskListItemToMarkdown()
     ]
   }
 }
 
 /**
- * @typedef {import('mdast').Root} Root
- * @typedef {import('micromark-extension-gfm').Options & import('mdast-util-gfm').Options} Options
+ * Like `Array#splice`, but smarter for giant arrays.
+ *
+ * `Array#splice` takes all items to be inserted as individual argument which
+ * causes a stack overflow in V8 when trying to insert 100k items for instance.
+ *
+ * Otherwise, this does not return the removed items, and takes `items` as an
+ * array instead of rest parameters.
+ *
+ * @template {unknown} T
+ *   Item type.
+ * @param {Array<T>} list
+ *   List to operate on.
+ * @param {number} start
+ *   Index to remove/insert at (can be negative).
+ * @param {number} remove
+ *   Number of items to remove.
+ * @param {Array<T>} items
+ *   Items to inject into `list`.
+ * @returns {undefined}
+ *   Nothing.
+ */
+function splice(list, start, remove, items) {
+  const end = list.length;
+  let chunkStart = 0;
+  /** @type {Array<unknown>} */
+  let parameters;
+
+  // Make start between zero and `end` (included).
+  if (start < 0) {
+    start = -start > end ? 0 : end + start;
+  } else {
+    start = start > end ? end : start;
+  }
+  remove = remove > 0 ? remove : 0;
+
+  // No need to chunk the items if there’s only a couple (10k) items.
+  if (items.length < 10000) {
+    parameters = Array.from(items);
+    parameters.unshift(start, remove);
+    // @ts-expect-error Hush, it’s fine.
+    list.splice(...parameters);
+  } else {
+    // Delete `remove` items starting from `start`
+    if (remove) list.splice(start, remove);
+
+    // Insert the items in chunks to not cause stack overflows.
+    while (chunkStart < items.length) {
+      parameters = items.slice(chunkStart, chunkStart + 10000);
+      parameters.unshift(start, 0);
+      // @ts-expect-error Hush, it’s fine.
+      list.splice(...parameters);
+      chunkStart += 10000;
+      start += 10000;
+    }
+  }
+}
+
+/**
+ * @import {
+ *   Extension,
+ *   Handles,
+ *   HtmlExtension,
+ *   NormalizedExtension
+ * } from 'micromark-util-types'
+ */
+
+
+const hasOwnProperty = {}.hasOwnProperty;
+
+/**
+ * Combine multiple syntax extensions into one.
+ *
+ * @param {ReadonlyArray<Extension>} extensions
+ *   List of syntax extensions.
+ * @returns {NormalizedExtension}
+ *   A single combined extension.
+ */
+function combineExtensions(extensions) {
+  /** @type {NormalizedExtension} */
+  const all = {};
+  let index = -1;
+
+  while (++index < extensions.length) {
+    syntaxExtension(all, extensions[index]);
+  }
+
+  return all
+}
+
+/**
+ * Merge `extension` into `all`.
+ *
+ * @param {NormalizedExtension} all
+ *   Extension to merge into.
+ * @param {Extension} extension
+ *   Extension to merge.
+ * @returns {undefined}
+ *   Nothing.
+ */
+function syntaxExtension(all, extension) {
+  /** @type {keyof Extension} */
+  let hook;
+
+  for (hook in extension) {
+    const maybe = hasOwnProperty.call(all, hook) ? all[hook] : undefined;
+    /** @type {Record<string, unknown>} */
+    const left = maybe || (all[hook] = {});
+    /** @type {Record<string, unknown> | undefined} */
+    const right = extension[hook];
+    /** @type {string} */
+    let code;
+
+    if (right) {
+      for (code in right) {
+        if (!hasOwnProperty.call(left, code)) left[code] = [];
+        const value = right[code];
+        constructs(
+          // @ts-expect-error Looks like a list.
+          left[code],
+          Array.isArray(value) ? value : value ? [value] : []
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Merge `list` into `existing` (both lists of constructs).
+ * Mutates `existing`.
+ *
+ * @param {Array<unknown>} existing
+ *   List of constructs to merge into.
+ * @param {Array<unknown>} list
+ *   List of constructs to merge.
+ * @returns {undefined}
+ *   Nothing.
+ */
+function constructs(existing, list) {
+  let index = -1;
+  /** @type {Array<unknown>} */
+  const before = [];
+
+  while (++index < list.length) {
+(list[index].add === 'after' ? existing : before).push(list[index]);
+  }
+
+  splice(existing, 0, 0, before);
+}
+
+/**
+ * @import {Code, ConstructRecord, Event, Extension, Previous, State, TokenizeContext, Tokenizer} from 'micromark-util-types'
+ */
+
+const wwwPrefix = {
+  tokenize: tokenizeWwwPrefix,
+  partial: true
+};
+const domain = {
+  tokenize: tokenizeDomain,
+  partial: true
+};
+const path = {
+  tokenize: tokenizePath,
+  partial: true
+};
+const trail = {
+  tokenize: tokenizeTrail,
+  partial: true
+};
+const emailDomainDotTrail = {
+  tokenize: tokenizeEmailDomainDotTrail,
+  partial: true
+};
+const wwwAutolink = {
+  name: 'wwwAutolink',
+  tokenize: tokenizeWwwAutolink,
+  previous: previousWww
+};
+const protocolAutolink = {
+  name: 'protocolAutolink',
+  tokenize: tokenizeProtocolAutolink,
+  previous: previousProtocol
+};
+const emailAutolink = {
+  name: 'emailAutolink',
+  tokenize: tokenizeEmailAutolink,
+  previous: previousEmail
+};
+
+/** @type {ConstructRecord} */
+const text = {};
+
+/**
+ * Create an extension for `micromark` to support GitHub autolink literal
+ * syntax.
+ *
+ * @returns {Extension}
+ *   Extension for `micromark` that can be passed in `extensions` to enable GFM
+ *   autolink literal syntax.
+ */
+function gfmAutolinkLiteral() {
+  return {
+    text
+  };
+}
+
+/** @type {Code} */
+let code = 48;
+
+// Add alphanumerics.
+while (code < 123) {
+  text[code] = emailAutolink;
+  code++;
+  if (code === 58) code = 65;else if (code === 91) code = 97;
+}
+text[43] = emailAutolink;
+text[45] = emailAutolink;
+text[46] = emailAutolink;
+text[95] = emailAutolink;
+text[72] = [emailAutolink, protocolAutolink];
+text[104] = [emailAutolink, protocolAutolink];
+text[87] = [emailAutolink, wwwAutolink];
+text[119] = [emailAutolink, wwwAutolink];
+
+// To do: perform email autolink literals on events, afterwards.
+// That’s where `markdown-rs` and `cmark-gfm` perform it.
+// It should look for `@`, then for atext backwards, and then for a label
+// forwards.
+// To do: `mailto:`, `xmpp:` protocol as prefix.
+
+/**
+ * Email autolink literal.
+ *
+ * ```markdown
+ * > | a contact@example.org b
+ *       ^^^^^^^^^^^^^^^^^^^
+ * ```
+ *
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeEmailAutolink(effects, ok, nok) {
+  const self = this;
+  /** @type {boolean | undefined} */
+  let dot;
+  /** @type {boolean} */
+  let data;
+  return start;
+
+  /**
+   * Start of email autolink literal.
+   *
+   * ```markdown
+   * > | a contact@example.org b
+   *       ^
+   * ```
+   *
+   * @type {State}
+   */
+  function start(code) {
+    if (!gfmAtext(code) || !previousEmail.call(self, self.previous) || previousUnbalanced(self.events)) {
+      return nok(code);
+    }
+    effects.enter('literalAutolink');
+    effects.enter('literalAutolinkEmail');
+    return atext(code);
+  }
+
+  /**
+   * In email atext.
+   *
+   * ```markdown
+   * > | a contact@example.org b
+   *       ^
+   * ```
+   *
+   * @type {State}
+   */
+  function atext(code) {
+    if (gfmAtext(code)) {
+      effects.consume(code);
+      return atext;
+    }
+    if (code === 64) {
+      effects.consume(code);
+      return emailDomain;
+    }
+    return nok(code);
+  }
+
+  /**
+   * In email domain.
+   *
+   * The reference code is a bit overly complex as it handles the `@`, of which
+   * there may be just one.
+   * Source: <https://github.com/github/cmark-gfm/blob/ef1cfcb/extensions/autolink.c#L318>
+   *
+   * ```markdown
+   * > | a contact@example.org b
+   *               ^
+   * ```
+   *
+   * @type {State}
+   */
+  function emailDomain(code) {
+    // Dot followed by alphanumerical (not `-` or `_`).
+    if (code === 46) {
+      return effects.check(emailDomainDotTrail, emailDomainAfter, emailDomainDot)(code);
+    }
+
+    // Alphanumerical, `-`, and `_`.
+    if (code === 45 || code === 95 || asciiAlphanumeric(code)) {
+      data = true;
+      effects.consume(code);
+      return emailDomain;
+    }
+
+    // To do: `/` if xmpp.
+
+    // Note: normally we’d truncate trailing punctuation from the link.
+    // However, email autolink literals cannot contain any of those markers,
+    // except for `.`, but that can only occur if it isn’t trailing.
+    // So we can ignore truncating!
+    return emailDomainAfter(code);
+  }
+
+  /**
+   * In email domain, on dot that is not a trail.
+   *
+   * ```markdown
+   * > | a contact@example.org b
+   *                      ^
+   * ```
+   *
+   * @type {State}
+   */
+  function emailDomainDot(code) {
+    effects.consume(code);
+    dot = true;
+    return emailDomain;
+  }
+
+  /**
+   * After email domain.
+   *
+   * ```markdown
+   * > | a contact@example.org b
+   *                          ^
+   * ```
+   *
+   * @type {State}
+   */
+  function emailDomainAfter(code) {
+    // Domain must not be empty, must include a dot, and must end in alphabetical.
+    // Source: <https://github.com/github/cmark-gfm/blob/ef1cfcb/extensions/autolink.c#L332>.
+    if (data && dot && asciiAlpha(self.previous)) {
+      effects.exit('literalAutolinkEmail');
+      effects.exit('literalAutolink');
+      return ok(code);
+    }
+    return nok(code);
+  }
+}
+
+/**
+ * `www` autolink literal.
+ *
+ * ```markdown
+ * > | a www.example.org b
+ *       ^^^^^^^^^^^^^^^
+ * ```
+ *
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeWwwAutolink(effects, ok, nok) {
+  const self = this;
+  return wwwStart;
+
+  /**
+   * Start of www autolink literal.
+   *
+   * ```markdown
+   * > | www.example.com/a?b#c
+   *     ^
+   * ```
+   *
+   * @type {State}
+   */
+  function wwwStart(code) {
+    if (code !== 87 && code !== 119 || !previousWww.call(self, self.previous) || previousUnbalanced(self.events)) {
+      return nok(code);
+    }
+    effects.enter('literalAutolink');
+    effects.enter('literalAutolinkWww');
+    // Note: we *check*, so we can discard the `www.` we parsed.
+    // If it worked, we consider it as a part of the domain.
+    return effects.check(wwwPrefix, effects.attempt(domain, effects.attempt(path, wwwAfter), nok), nok)(code);
+  }
+
+  /**
+   * After a www autolink literal.
+   *
+   * ```markdown
+   * > | www.example.com/a?b#c
+   *                          ^
+   * ```
+   *
+   * @type {State}
+   */
+  function wwwAfter(code) {
+    effects.exit('literalAutolinkWww');
+    effects.exit('literalAutolink');
+    return ok(code);
+  }
+}
+
+/**
+ * Protocol autolink literal.
+ *
+ * ```markdown
+ * > | a https://example.org b
+ *       ^^^^^^^^^^^^^^^^^^^
+ * ```
+ *
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeProtocolAutolink(effects, ok, nok) {
+  const self = this;
+  let buffer = '';
+  let seen = false;
+  return protocolStart;
+
+  /**
+   * Start of protocol autolink literal.
+   *
+   * ```markdown
+   * > | https://example.com/a?b#c
+   *     ^
+   * ```
+   *
+   * @type {State}
+   */
+  function protocolStart(code) {
+    if ((code === 72 || code === 104) && previousProtocol.call(self, self.previous) && !previousUnbalanced(self.events)) {
+      effects.enter('literalAutolink');
+      effects.enter('literalAutolinkHttp');
+      buffer += String.fromCodePoint(code);
+      effects.consume(code);
+      return protocolPrefixInside;
+    }
+    return nok(code);
+  }
+
+  /**
+   * In protocol.
+   *
+   * ```markdown
+   * > | https://example.com/a?b#c
+   *     ^^^^^
+   * ```
+   *
+   * @type {State}
+   */
+  function protocolPrefixInside(code) {
+    // `5` is size of `https`
+    if (asciiAlpha(code) && buffer.length < 5) {
+      // @ts-expect-error: definitely number.
+      buffer += String.fromCodePoint(code);
+      effects.consume(code);
+      return protocolPrefixInside;
+    }
+    if (code === 58) {
+      const protocol = buffer.toLowerCase();
+      if (protocol === 'http' || protocol === 'https') {
+        effects.consume(code);
+        return protocolSlashesInside;
+      }
+    }
+    return nok(code);
+  }
+
+  /**
+   * In slashes.
+   *
+   * ```markdown
+   * > | https://example.com/a?b#c
+   *           ^^
+   * ```
+   *
+   * @type {State}
+   */
+  function protocolSlashesInside(code) {
+    if (code === 47) {
+      effects.consume(code);
+      if (seen) {
+        return afterProtocol;
+      }
+      seen = true;
+      return protocolSlashesInside;
+    }
+    return nok(code);
+  }
+
+  /**
+   * After protocol, before domain.
+   *
+   * ```markdown
+   * > | https://example.com/a?b#c
+   *             ^
+   * ```
+   *
+   * @type {State}
+   */
+  function afterProtocol(code) {
+    // To do: this is different from `markdown-rs`:
+    // https://github.com/wooorm/markdown-rs/blob/b3a921c761309ae00a51fe348d8a43adbc54b518/src/construct/gfm_autolink_literal.rs#L172-L182
+    return code === null || asciiControl(code) || markdownLineEndingOrSpace(code) || unicodeWhitespace(code) || unicodePunctuation(code) ? nok(code) : effects.attempt(domain, effects.attempt(path, protocolAfter), nok)(code);
+  }
+
+  /**
+   * After a protocol autolink literal.
+   *
+   * ```markdown
+   * > | https://example.com/a?b#c
+   *                              ^
+   * ```
+   *
+   * @type {State}
+   */
+  function protocolAfter(code) {
+    effects.exit('literalAutolinkHttp');
+    effects.exit('literalAutolink');
+    return ok(code);
+  }
+}
+
+/**
+ * `www` prefix.
+ *
+ * ```markdown
+ * > | a www.example.org b
+ *       ^^^^
+ * ```
+ *
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeWwwPrefix(effects, ok, nok) {
+  let size = 0;
+  return wwwPrefixInside;
+
+  /**
+   * In www prefix.
+   *
+   * ```markdown
+   * > | www.example.com
+   *     ^^^^
+   * ```
+   *
+   * @type {State}
+   */
+  function wwwPrefixInside(code) {
+    if ((code === 87 || code === 119) && size < 3) {
+      size++;
+      effects.consume(code);
+      return wwwPrefixInside;
+    }
+    if (code === 46 && size === 3) {
+      effects.consume(code);
+      return wwwPrefixAfter;
+    }
+    return nok(code);
+  }
+
+  /**
+   * After www prefix.
+   *
+   * ```markdown
+   * > | www.example.com
+   *         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function wwwPrefixAfter(code) {
+    // If there is *anything*, we can link.
+    return code === null ? nok(code) : ok(code);
+  }
+}
+
+/**
+ * Domain.
+ *
+ * ```markdown
+ * > | a https://example.org b
+ *               ^^^^^^^^^^^
+ * ```
+ *
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeDomain(effects, ok, nok) {
+  /** @type {boolean | undefined} */
+  let underscoreInLastSegment;
+  /** @type {boolean | undefined} */
+  let underscoreInLastLastSegment;
+  /** @type {boolean | undefined} */
+  let seen;
+  return domainInside;
+
+  /**
+   * In domain.
+   *
+   * ```markdown
+   * > | https://example.com/a
+   *             ^^^^^^^^^^^
+   * ```
+   *
+   * @type {State}
+   */
+  function domainInside(code) {
+    // Check whether this marker, which is a trailing punctuation
+    // marker, optionally followed by more trailing markers, and then
+    // followed by an end.
+    if (code === 46 || code === 95) {
+      return effects.check(trail, domainAfter, domainAtPunctuation)(code);
+    }
+
+    // GH documents that only alphanumerics (other than `-`, `.`, and `_`) can
+    // occur, which sounds like ASCII only, but they also support `www.點看.com`,
+    // so that’s Unicode.
+    // Instead of some new production for Unicode alphanumerics, markdown
+    // already has that for Unicode punctuation and whitespace, so use those.
+    // Source: <https://github.com/github/cmark-gfm/blob/ef1cfcb/extensions/autolink.c#L12>.
+    if (code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code) || code !== 45 && unicodePunctuation(code)) {
+      return domainAfter(code);
+    }
+    seen = true;
+    effects.consume(code);
+    return domainInside;
+  }
+
+  /**
+   * In domain, at potential trailing punctuation, that was not trailing.
+   *
+   * ```markdown
+   * > | https://example.com
+   *                    ^
+   * ```
+   *
+   * @type {State}
+   */
+  function domainAtPunctuation(code) {
+    // There is an underscore in the last segment of the domain
+    if (code === 95) {
+      underscoreInLastSegment = true;
+    }
+    // Otherwise, it’s a `.`: save the last segment underscore in the
+    // penultimate segment slot.
+    else {
+      underscoreInLastLastSegment = underscoreInLastSegment;
+      underscoreInLastSegment = undefined;
+    }
+    effects.consume(code);
+    return domainInside;
+  }
+
+  /**
+   * After domain.
+   *
+   * ```markdown
+   * > | https://example.com/a
+   *                        ^
+   * ```
+   *
+   * @type {State} */
+  function domainAfter(code) {
+    // Note: that’s GH says a dot is needed, but it’s not true:
+    // <https://github.com/github/cmark-gfm/issues/279>
+    if (underscoreInLastLastSegment || underscoreInLastSegment || !seen) {
+      return nok(code);
+    }
+    return ok(code);
+  }
+}
+
+/**
+ * Path.
+ *
+ * ```markdown
+ * > | a https://example.org/stuff b
+ *                          ^^^^^^
+ * ```
+ *
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizePath(effects, ok) {
+  let sizeOpen = 0;
+  let sizeClose = 0;
+  return pathInside;
+
+  /**
+   * In path.
+   *
+   * ```markdown
+   * > | https://example.com/a
+   *                        ^^
+   * ```
+   *
+   * @type {State}
+   */
+  function pathInside(code) {
+    if (code === 40) {
+      sizeOpen++;
+      effects.consume(code);
+      return pathInside;
+    }
+
+    // To do: `markdown-rs` also needs this.
+    // If this is a paren, and there are less closings than openings,
+    // we don’t check for a trail.
+    if (code === 41 && sizeClose < sizeOpen) {
+      return pathAtPunctuation(code);
+    }
+
+    // Check whether this trailing punctuation marker is optionally
+    // followed by more trailing markers, and then followed
+    // by an end.
+    if (code === 33 || code === 34 || code === 38 || code === 39 || code === 41 || code === 42 || code === 44 || code === 46 || code === 58 || code === 59 || code === 60 || code === 63 || code === 93 || code === 95 || code === 126) {
+      return effects.check(trail, ok, pathAtPunctuation)(code);
+    }
+    if (code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+      return ok(code);
+    }
+    effects.consume(code);
+    return pathInside;
+  }
+
+  /**
+   * In path, at potential trailing punctuation, that was not trailing.
+   *
+   * ```markdown
+   * > | https://example.com/a"b
+   *                          ^
+   * ```
+   *
+   * @type {State}
+   */
+  function pathAtPunctuation(code) {
+    // Count closing parens.
+    if (code === 41) {
+      sizeClose++;
+    }
+    effects.consume(code);
+    return pathInside;
+  }
+}
+
+/**
+ * Trail.
+ *
+ * This calls `ok` if this *is* the trail, followed by an end, which means
+ * the entire trail is not part of the link.
+ * It calls `nok` if this *is* part of the link.
+ *
+ * ```markdown
+ * > | https://example.com").
+ *                        ^^^
+ * ```
+ *
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeTrail(effects, ok, nok) {
+  return trail;
+
+  /**
+   * In trail of domain or path.
+   *
+   * ```markdown
+   * > | https://example.com").
+   *                        ^
+   * ```
+   *
+   * @type {State}
+   */
+  function trail(code) {
+    // Regular trailing punctuation.
+    if (code === 33 || code === 34 || code === 39 || code === 41 || code === 42 || code === 44 || code === 46 || code === 58 || code === 59 || code === 63 || code === 95 || code === 126) {
+      effects.consume(code);
+      return trail;
+    }
+
+    // `&` followed by one or more alphabeticals and then a `;`, is
+    // as a whole considered as trailing punctuation.
+    // In all other cases, it is considered as continuation of the URL.
+    if (code === 38) {
+      effects.consume(code);
+      return trailCharacterReferenceStart;
+    }
+
+    // Needed because we allow literals after `[`, as we fix:
+    // <https://github.com/github/cmark-gfm/issues/278>.
+    // Check that it is not followed by `(` or `[`.
+    if (code === 93) {
+      effects.consume(code);
+      return trailBracketAfter;
+    }
+    if (
+    // `<` is an end.
+    code === 60 ||
+    // So is whitespace.
+    code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+      return ok(code);
+    }
+    return nok(code);
+  }
+
+  /**
+   * In trail, after `]`.
+   *
+   * > 👉 **Note**: this deviates from `cmark-gfm` to fix a bug.
+   * > See end of <https://github.com/github/cmark-gfm/issues/278> for more.
+   *
+   * ```markdown
+   * > | https://example.com](
+   *                         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function trailBracketAfter(code) {
+    // Whitespace or something that could start a resource or reference is the end.
+    // Switch back to trail otherwise.
+    if (code === null || code === 40 || code === 91 || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+      return ok(code);
+    }
+    return trail(code);
+  }
+
+  /**
+   * In character-reference like trail, after `&`.
+   *
+   * ```markdown
+   * > | https://example.com&amp;).
+   *                         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function trailCharacterReferenceStart(code) {
+    // When non-alpha, it’s not a trail.
+    return asciiAlpha(code) ? trailCharacterReferenceInside(code) : nok(code);
+  }
+
+  /**
+   * In character-reference like trail.
+   *
+   * ```markdown
+   * > | https://example.com&amp;).
+   *                         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function trailCharacterReferenceInside(code) {
+    // Switch back to trail if this is well-formed.
+    if (code === 59) {
+      effects.consume(code);
+      return trail;
+    }
+    if (asciiAlpha(code)) {
+      effects.consume(code);
+      return trailCharacterReferenceInside;
+    }
+
+    // It’s not a trail.
+    return nok(code);
+  }
+}
+
+/**
+ * Dot in email domain trail.
+ *
+ * This calls `ok` if this *is* the trail, followed by an end, which means
+ * the trail is not part of the link.
+ * It calls `nok` if this *is* part of the link.
+ *
+ * ```markdown
+ * > | contact@example.org.
+ *                        ^
+ * ```
+ *
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeEmailDomainDotTrail(effects, ok, nok) {
+  return start;
+
+  /**
+   * Dot.
+   *
+   * ```markdown
+   * > | contact@example.org.
+   *                    ^   ^
+   * ```
+   *
+   * @type {State}
+   */
+  function start(code) {
+    // Must be dot.
+    effects.consume(code);
+    return after;
+  }
+
+  /**
+   * After dot.
+   *
+   * ```markdown
+   * > | contact@example.org.
+   *                     ^   ^
+   * ```
+   *
+   * @type {State}
+   */
+  function after(code) {
+    // Not a trail if alphanumeric.
+    return asciiAlphanumeric(code) ? nok(code) : ok(code);
+  }
+}
+
+/**
+ * See:
+ * <https://github.com/github/cmark-gfm/blob/ef1cfcb/extensions/autolink.c#L156>.
+ *
+ * @type {Previous}
+ */
+function previousWww(code) {
+  return code === null || code === 40 || code === 42 || code === 95 || code === 91 || code === 93 || code === 126 || markdownLineEndingOrSpace(code);
+}
+
+/**
+ * See:
+ * <https://github.com/github/cmark-gfm/blob/ef1cfcb/extensions/autolink.c#L214>.
+ *
+ * @type {Previous}
+ */
+function previousProtocol(code) {
+  return !asciiAlpha(code);
+}
+
+/**
+ * @this {TokenizeContext}
+ * @type {Previous}
+ */
+function previousEmail(code) {
+  // Do not allow a slash “inside” atext.
+  // The reference code is a bit weird, but that’s what it results in.
+  // Source: <https://github.com/github/cmark-gfm/blob/ef1cfcb/extensions/autolink.c#L307>.
+  // Other than slash, every preceding character is allowed.
+  return !(code === 47 || gfmAtext(code));
+}
+
+/**
+ * @param {Code} code
+ * @returns {boolean}
+ */
+function gfmAtext(code) {
+  return code === 43 || code === 45 || code === 46 || code === 95 || asciiAlphanumeric(code);
+}
+
+/**
+ * @param {Array<Event>} events
+ * @returns {boolean}
+ */
+function previousUnbalanced(events) {
+  let index = events.length;
+  let result = false;
+  while (index--) {
+    const token = events[index][1];
+    if ((token.type === 'labelLink' || token.type === 'labelImage') && !token._balanced) {
+      result = true;
+      break;
+    }
+
+    // If we’ve seen this token, and it was marked as not having any unbalanced
+    // bracket before it, we can exit.
+    if (token._gfmAutolinkLiteralWalkedInto) {
+      result = false;
+      break;
+    }
+  }
+  if (events.length > 0 && !result) {
+    // Mark the last token as “walked into” w/o finding
+    // anything.
+    events[events.length - 1][1]._gfmAutolinkLiteralWalkedInto = true;
+  }
+  return result;
+}
+
+/**
+ * @import {Event, Resolver, TokenizeContext} from 'micromark-util-types'
+ */
+
+/**
+ * Call all `resolveAll`s.
+ *
+ * @param {ReadonlyArray<{resolveAll?: Resolver | undefined}>} constructs
+ *   List of constructs, optionally with `resolveAll`s.
+ * @param {Array<Event>} events
+ *   List of events.
+ * @param {TokenizeContext} context
+ *   Context used by `tokenize`.
+ * @returns {Array<Event>}
+ *   Changed events.
+ */
+function resolveAll(constructs, events, context) {
+  /** @type {Array<Resolver>} */
+  const called = [];
+  let index = -1;
+
+  while (++index < constructs.length) {
+    const resolve = constructs[index].resolveAll;
+
+    if (resolve && !called.includes(resolve)) {
+      events = resolve(events, context);
+      called.push(resolve);
+    }
+  }
+
+  return events
+}
+
+/**
+ * @import {Effects, State, TokenType} from 'micromark-util-types'
+ */
+
+
+// To do: implement `spaceOrTab`, `spaceOrTabMinMax`, `spaceOrTabWithOptions`.
+
+/**
+ * Parse spaces and tabs.
+ *
+ * There is no `nok` parameter:
+ *
+ * *   spaces in markdown are often optional, in which case this factory can be
+ *     used and `ok` will be switched to whether spaces were found or not
+ * *   one line ending or space can be detected with `markdownSpace(code)` right
+ *     before using `factorySpace`
+ *
+ * ###### Examples
+ *
+ * Where `␉` represents a tab (plus how much it expands) and `␠` represents a
+ * single space.
+ *
+ * ```markdown
+ * ␉
+ * ␠␠␠␠
+ * ␉␠
+ * ```
+ *
+ * @param {Effects} effects
+ *   Context.
+ * @param {State} ok
+ *   State switched to when successful.
+ * @param {TokenType} type
+ *   Type (`' \t'`).
+ * @param {number | undefined} [max=Infinity]
+ *   Max (exclusive).
+ * @returns {State}
+ *   Start state.
+ */
+function factorySpace(effects, ok, type, max) {
+  const limit = max ? max - 1 : Number.POSITIVE_INFINITY;
+  let size = 0;
+  return start;
+
+  /** @type {State} */
+  function start(code) {
+    if (markdownSpace(code)) {
+      effects.enter(type);
+      return prefix(code);
+    }
+    return ok(code);
+  }
+
+  /** @type {State} */
+  function prefix(code) {
+    if (markdownSpace(code) && size++ < limit) {
+      effects.consume(code);
+      return prefix;
+    }
+    effects.exit(type);
+    return ok(code);
+  }
+}
+
+/**
+ * @import {
+ *   Construct,
+ *   State,
+ *   TokenizeContext,
+ *   Tokenizer
+ * } from 'micromark-util-types'
+ */
+
+/** @type {Construct} */
+const blankLine = {
+  partial: true,
+  tokenize: tokenizeBlankLine
+};
+
+/**
+ * @this {TokenizeContext}
+ *   Context.
+ * @type {Tokenizer}
+ */
+function tokenizeBlankLine(effects, ok, nok) {
+  return start;
+
+  /**
+   * Start of blank line.
+   *
+   * > 👉 **Note**: `␠` represents a space character.
+   *
+   * ```markdown
+   * > | ␠␠␊
+   *     ^
+   * > | ␊
+   *     ^
+   * ```
+   *
+   * @type {State}
+   */
+  function start(code) {
+    return markdownSpace(code) ? factorySpace(effects, after, "linePrefix")(code) : after(code);
+  }
+
+  /**
+   * At eof/eol, after optional whitespace.
+   *
+   * > 👉 **Note**: `␠` represents a space character.
+   *
+   * ```markdown
+   * > | ␠␠␊
+   *       ^
+   * > | ␊
+   *     ^
+   * ```
+   *
+   * @type {State}
+   */
+  function after(code) {
+    return code === null || markdownLineEnding(code) ? ok(code) : nok(code);
+  }
+}
+
+/**
+ * @import {Event, Exiter, Extension, Resolver, State, Token, TokenizeContext, Tokenizer} from 'micromark-util-types'
+ */
+
+const indent = {
+  tokenize: tokenizeIndent,
+  partial: true
+};
+
+// To do: micromark should support a `_hiddenGfmFootnoteSupport`, which only
+// affects label start (image).
+// That will let us drop `tokenizePotentialGfmFootnote*`.
+// It currently has a `_hiddenFootnoteSupport`, which affects that and more.
+// That can be removed when `micromark-extension-footnote` is archived.
+
+/**
+ * Create an extension for `micromark` to enable GFM footnote syntax.
+ *
+ * @returns {Extension}
+ *   Extension for `micromark` that can be passed in `extensions` to
+ *   enable GFM footnote syntax.
+ */
+function gfmFootnote() {
+  /** @type {Extension} */
+  return {
+    document: {
+      [91]: {
+        name: 'gfmFootnoteDefinition',
+        tokenize: tokenizeDefinitionStart,
+        continuation: {
+          tokenize: tokenizeDefinitionContinuation
+        },
+        exit: gfmFootnoteDefinitionEnd
+      }
+    },
+    text: {
+      [91]: {
+        name: 'gfmFootnoteCall',
+        tokenize: tokenizeGfmFootnoteCall
+      },
+      [93]: {
+        name: 'gfmPotentialFootnoteCall',
+        add: 'after',
+        tokenize: tokenizePotentialGfmFootnoteCall,
+        resolveTo: resolveToPotentialGfmFootnoteCall
+      }
+    }
+  };
+}
+
+// To do: remove after micromark update.
+/**
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizePotentialGfmFootnoteCall(effects, ok, nok) {
+  const self = this;
+  let index = self.events.length;
+  const defined = self.parser.gfmFootnotes || (self.parser.gfmFootnotes = []);
+  /** @type {Token} */
+  let labelStart;
+
+  // Find an opening.
+  while (index--) {
+    const token = self.events[index][1];
+    if (token.type === "labelImage") {
+      labelStart = token;
+      break;
+    }
+
+    // Exit if we’ve walked far enough.
+    if (token.type === 'gfmFootnoteCall' || token.type === "labelLink" || token.type === "label" || token.type === "image" || token.type === "link") {
+      break;
+    }
+  }
+  return start;
+
+  /**
+   * @type {State}
+   */
+  function start(code) {
+    if (!labelStart || !labelStart._balanced) {
+      return nok(code);
+    }
+    const id = normalizeIdentifier(self.sliceSerialize({
+      start: labelStart.end,
+      end: self.now()
+    }));
+    if (id.codePointAt(0) !== 94 || !defined.includes(id.slice(1))) {
+      return nok(code);
+    }
+    effects.enter('gfmFootnoteCallLabelMarker');
+    effects.consume(code);
+    effects.exit('gfmFootnoteCallLabelMarker');
+    return ok(code);
+  }
+}
+
+// To do: remove after micromark update.
+/** @type {Resolver} */
+function resolveToPotentialGfmFootnoteCall(events, context) {
+  let index = events.length;
+
+  // Find an opening.
+  while (index--) {
+    if (events[index][1].type === "labelImage" && events[index][0] === 'enter') {
+      events[index][1];
+      break;
+    }
+  }
+  // Change the `labelImageMarker` to a `data`.
+  events[index + 1][1].type = "data";
+  events[index + 3][1].type = 'gfmFootnoteCallLabelMarker';
+
+  // The whole (without `!`):
+  /** @type {Token} */
+  const call = {
+    type: 'gfmFootnoteCall',
+    start: Object.assign({}, events[index + 3][1].start),
+    end: Object.assign({}, events[events.length - 1][1].end)
+  };
+  // The `^` marker
+  /** @type {Token} */
+  const marker = {
+    type: 'gfmFootnoteCallMarker',
+    start: Object.assign({}, events[index + 3][1].end),
+    end: Object.assign({}, events[index + 3][1].end)
+  };
+  // Increment the end 1 character.
+  marker.end.column++;
+  marker.end.offset++;
+  marker.end._bufferIndex++;
+  /** @type {Token} */
+  const string = {
+    type: 'gfmFootnoteCallString',
+    start: Object.assign({}, marker.end),
+    end: Object.assign({}, events[events.length - 1][1].start)
+  };
+  /** @type {Token} */
+  const chunk = {
+    type: "chunkString",
+    contentType: 'string',
+    start: Object.assign({}, string.start),
+    end: Object.assign({}, string.end)
+  };
+
+  /** @type {Array<Event>} */
+  const replacement = [
+  // Take the `labelImageMarker` (now `data`, the `!`)
+  events[index + 1], events[index + 2], ['enter', call, context],
+  // The `[`
+  events[index + 3], events[index + 4],
+  // The `^`.
+  ['enter', marker, context], ['exit', marker, context],
+  // Everything in between.
+  ['enter', string, context], ['enter', chunk, context], ['exit', chunk, context], ['exit', string, context],
+  // The ending (`]`, properly parsed and labelled).
+  events[events.length - 2], events[events.length - 1], ['exit', call, context]];
+  events.splice(index, events.length - index + 1, ...replacement);
+  return events;
+}
+
+/**
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeGfmFootnoteCall(effects, ok, nok) {
+  const self = this;
+  const defined = self.parser.gfmFootnotes || (self.parser.gfmFootnotes = []);
+  let size = 0;
+  /** @type {boolean} */
+  let data;
+
+  // Note: the implementation of `markdown-rs` is different, because it houses
+  // core *and* extensions in one project.
+  // Therefore, it can include footnote logic inside `label-end`.
+  // We can’t do that, but luckily, we can parse footnotes in a simpler way than
+  // needed for labels.
+  return start;
+
+  /**
+   * Start of footnote label.
+   *
+   * ```markdown
+   * > | a [^b] c
+   *       ^
+   * ```
+   *
+   * @type {State}
+   */
+  function start(code) {
+    effects.enter('gfmFootnoteCall');
+    effects.enter('gfmFootnoteCallLabelMarker');
+    effects.consume(code);
+    effects.exit('gfmFootnoteCallLabelMarker');
+    return callStart;
+  }
+
+  /**
+   * After `[`, at `^`.
+   *
+   * ```markdown
+   * > | a [^b] c
+   *        ^
+   * ```
+   *
+   * @type {State}
+   */
+  function callStart(code) {
+    if (code !== 94) return nok(code);
+    effects.enter('gfmFootnoteCallMarker');
+    effects.consume(code);
+    effects.exit('gfmFootnoteCallMarker');
+    effects.enter('gfmFootnoteCallString');
+    effects.enter('chunkString').contentType = 'string';
+    return callData;
+  }
+
+  /**
+   * In label.
+   *
+   * ```markdown
+   * > | a [^b] c
+   *         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function callData(code) {
+    if (
+    // Too long.
+    size > 999 ||
+    // Closing brace with nothing.
+    code === 93 && !data ||
+    // Space or tab is not supported by GFM for some reason.
+    // `\n` and `[` not being supported makes sense.
+    code === null || code === 91 || markdownLineEndingOrSpace(code)) {
+      return nok(code);
+    }
+    if (code === 93) {
+      effects.exit('chunkString');
+      const token = effects.exit('gfmFootnoteCallString');
+      if (!defined.includes(normalizeIdentifier(self.sliceSerialize(token)))) {
+        return nok(code);
+      }
+      effects.enter('gfmFootnoteCallLabelMarker');
+      effects.consume(code);
+      effects.exit('gfmFootnoteCallLabelMarker');
+      effects.exit('gfmFootnoteCall');
+      return ok;
+    }
+    if (!markdownLineEndingOrSpace(code)) {
+      data = true;
+    }
+    size++;
+    effects.consume(code);
+    return code === 92 ? callEscape : callData;
+  }
+
+  /**
+   * On character after escape.
+   *
+   * ```markdown
+   * > | a [^b\c] d
+   *           ^
+   * ```
+   *
+   * @type {State}
+   */
+  function callEscape(code) {
+    if (code === 91 || code === 92 || code === 93) {
+      effects.consume(code);
+      size++;
+      return callData;
+    }
+    return callData(code);
+  }
+}
+
+/**
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeDefinitionStart(effects, ok, nok) {
+  const self = this;
+  const defined = self.parser.gfmFootnotes || (self.parser.gfmFootnotes = []);
+  /** @type {string} */
+  let identifier;
+  let size = 0;
+  /** @type {boolean | undefined} */
+  let data;
+  return start;
+
+  /**
+   * Start of GFM footnote definition.
+   *
+   * ```markdown
+   * > | [^a]: b
+   *     ^
+   * ```
+   *
+   * @type {State}
+   */
+  function start(code) {
+    effects.enter('gfmFootnoteDefinition')._container = true;
+    effects.enter('gfmFootnoteDefinitionLabel');
+    effects.enter('gfmFootnoteDefinitionLabelMarker');
+    effects.consume(code);
+    effects.exit('gfmFootnoteDefinitionLabelMarker');
+    return labelAtMarker;
+  }
+
+  /**
+   * In label, at caret.
+   *
+   * ```markdown
+   * > | [^a]: b
+   *      ^
+   * ```
+   *
+   * @type {State}
+   */
+  function labelAtMarker(code) {
+    if (code === 94) {
+      effects.enter('gfmFootnoteDefinitionMarker');
+      effects.consume(code);
+      effects.exit('gfmFootnoteDefinitionMarker');
+      effects.enter('gfmFootnoteDefinitionLabelString');
+      effects.enter('chunkString').contentType = 'string';
+      return labelInside;
+    }
+    return nok(code);
+  }
+
+  /**
+   * In label.
+   *
+   * > 👉 **Note**: `cmark-gfm` prevents whitespace from occurring in footnote
+   * > definition labels.
+   *
+   * ```markdown
+   * > | [^a]: b
+   *       ^
+   * ```
+   *
+   * @type {State}
+   */
+  function labelInside(code) {
+    if (
+    // Too long.
+    size > 999 ||
+    // Closing brace with nothing.
+    code === 93 && !data ||
+    // Space or tab is not supported by GFM for some reason.
+    // `\n` and `[` not being supported makes sense.
+    code === null || code === 91 || markdownLineEndingOrSpace(code)) {
+      return nok(code);
+    }
+    if (code === 93) {
+      effects.exit('chunkString');
+      const token = effects.exit('gfmFootnoteDefinitionLabelString');
+      identifier = normalizeIdentifier(self.sliceSerialize(token));
+      effects.enter('gfmFootnoteDefinitionLabelMarker');
+      effects.consume(code);
+      effects.exit('gfmFootnoteDefinitionLabelMarker');
+      effects.exit('gfmFootnoteDefinitionLabel');
+      return labelAfter;
+    }
+    if (!markdownLineEndingOrSpace(code)) {
+      data = true;
+    }
+    size++;
+    effects.consume(code);
+    return code === 92 ? labelEscape : labelInside;
+  }
+
+  /**
+   * After `\`, at a special character.
+   *
+   * > 👉 **Note**: `cmark-gfm` currently does not support escaped brackets:
+   * > <https://github.com/github/cmark-gfm/issues/240>
+   *
+   * ```markdown
+   * > | [^a\*b]: c
+   *         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function labelEscape(code) {
+    if (code === 91 || code === 92 || code === 93) {
+      effects.consume(code);
+      size++;
+      return labelInside;
+    }
+    return labelInside(code);
+  }
+
+  /**
+   * After definition label.
+   *
+   * ```markdown
+   * > | [^a]: b
+   *         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function labelAfter(code) {
+    if (code === 58) {
+      effects.enter('definitionMarker');
+      effects.consume(code);
+      effects.exit('definitionMarker');
+      if (!defined.includes(identifier)) {
+        defined.push(identifier);
+      }
+
+      // Any whitespace after the marker is eaten, forming indented code
+      // is not possible.
+      // No space is also fine, just like a block quote marker.
+      return factorySpace(effects, whitespaceAfter, 'gfmFootnoteDefinitionWhitespace');
+    }
+    return nok(code);
+  }
+
+  /**
+   * After definition prefix.
+   *
+   * ```markdown
+   * > | [^a]: b
+   *           ^
+   * ```
+   *
+   * @type {State}
+   */
+  function whitespaceAfter(code) {
+    // `markdown-rs` has a wrapping token for the prefix that is closed here.
+    return ok(code);
+  }
+}
+
+/**
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeDefinitionContinuation(effects, ok, nok) {
+  /// Start of footnote definition continuation.
+  ///
+  /// ```markdown
+  ///   | [^a]: b
+  /// > |     c
+  ///     ^
+  /// ```
+  //
+  // Either a blank line, which is okay, or an indented thing.
+  return effects.check(blankLine, ok, effects.attempt(indent, ok, nok));
+}
+
+/** @type {Exiter} */
+function gfmFootnoteDefinitionEnd(effects) {
+  effects.exit('gfmFootnoteDefinition');
+}
+
+/**
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeIndent(effects, ok, nok) {
+  const self = this;
+  return factorySpace(effects, afterPrefix, 'gfmFootnoteDefinitionIndent', 4 + 1);
+
+  /**
+   * @type {State}
+   */
+  function afterPrefix(code) {
+    const tail = self.events[self.events.length - 1];
+    return tail && tail[1].type === 'gfmFootnoteDefinitionIndent' && tail[2].sliceSerialize(tail[1], true).length === 4 ? ok(code) : nok(code);
+  }
+}
+
+/**
+ * @import {Options} from 'micromark-extension-gfm-strikethrough'
+ * @import {Event, Extension, Resolver, State, Token, TokenizeContext, Tokenizer} from 'micromark-util-types'
+ */
+
+/**
+ * Create an extension for `micromark` to enable GFM strikethrough syntax.
+ *
+ * @param {Options | null | undefined} [options={}]
+ *   Configuration.
+ * @returns {Extension}
+ *   Extension for `micromark` that can be passed in `extensions`, to
+ *   enable GFM strikethrough syntax.
+ */
+function gfmStrikethrough(options) {
+  const options_ = options || {};
+  let single = options_.singleTilde;
+  const tokenizer = {
+    name: 'strikethrough',
+    tokenize: tokenizeStrikethrough,
+    resolveAll: resolveAllStrikethrough
+  };
+  if (single === null || single === undefined) {
+    single = true;
+  }
+  return {
+    text: {
+      [126]: tokenizer
+    },
+    insideSpan: {
+      null: [tokenizer]
+    },
+    attentionMarkers: {
+      null: [126]
+    }
+  };
+
+  /**
+   * Take events and resolve strikethrough.
+   *
+   * @type {Resolver}
+   */
+  function resolveAllStrikethrough(events, context) {
+    let index = -1;
+
+    // Walk through all events.
+    while (++index < events.length) {
+      // Find a token that can close.
+      if (events[index][0] === 'enter' && events[index][1].type === 'strikethroughSequenceTemporary' && events[index][1]._close) {
+        let open = index;
+
+        // Now walk back to find an opener.
+        while (open--) {
+          // Find a token that can open the closer.
+          if (events[open][0] === 'exit' && events[open][1].type === 'strikethroughSequenceTemporary' && events[open][1]._open &&
+          // If the sizes are the same:
+          events[index][1].end.offset - events[index][1].start.offset === events[open][1].end.offset - events[open][1].start.offset) {
+            events[index][1].type = 'strikethroughSequence';
+            events[open][1].type = 'strikethroughSequence';
+
+            /** @type {Token} */
+            const strikethrough = {
+              type: 'strikethrough',
+              start: Object.assign({}, events[open][1].start),
+              end: Object.assign({}, events[index][1].end)
+            };
+
+            /** @type {Token} */
+            const text = {
+              type: 'strikethroughText',
+              start: Object.assign({}, events[open][1].end),
+              end: Object.assign({}, events[index][1].start)
+            };
+
+            // Opening.
+            /** @type {Array<Event>} */
+            const nextEvents = [['enter', strikethrough, context], ['enter', events[open][1], context], ['exit', events[open][1], context], ['enter', text, context]];
+            const insideSpan = context.parser.constructs.insideSpan.null;
+            if (insideSpan) {
+              // Between.
+              splice(nextEvents, nextEvents.length, 0, resolveAll(insideSpan, events.slice(open + 1, index), context));
+            }
+
+            // Closing.
+            splice(nextEvents, nextEvents.length, 0, [['exit', text, context], ['enter', events[index][1], context], ['exit', events[index][1], context], ['exit', strikethrough, context]]);
+            splice(events, open - 1, index - open + 3, nextEvents);
+            index = open + nextEvents.length - 2;
+            break;
+          }
+        }
+      }
+    }
+    index = -1;
+    while (++index < events.length) {
+      if (events[index][1].type === 'strikethroughSequenceTemporary') {
+        events[index][1].type = "data";
+      }
+    }
+    return events;
+  }
+
+  /**
+   * @this {TokenizeContext}
+   * @type {Tokenizer}
+   */
+  function tokenizeStrikethrough(effects, ok, nok) {
+    const previous = this.previous;
+    const events = this.events;
+    let size = 0;
+    return start;
+
+    /** @type {State} */
+    function start(code) {
+      if (previous === 126 && events[events.length - 1][1].type !== "characterEscape") {
+        return nok(code);
+      }
+      effects.enter('strikethroughSequenceTemporary');
+      return more(code);
+    }
+
+    /** @type {State} */
+    function more(code) {
+      const before = classifyCharacter(previous);
+      if (code === 126) {
+        // If this is the third marker, exit.
+        if (size > 1) return nok(code);
+        effects.consume(code);
+        size++;
+        return more;
+      }
+      if (size < 2 && !single) return nok(code);
+      const token = effects.exit('strikethroughSequenceTemporary');
+      const after = classifyCharacter(code);
+      token._open = !after || after === 2 && Boolean(before);
+      token._close = !before || before === 2 && Boolean(after);
+      return ok(code);
+    }
+  }
+}
+
+/**
+ * @import {Event} from 'micromark-util-types'
+ */
+
+// Port of `edit_map.rs` from `markdown-rs`.
+// This should move to `markdown-js` later.
+
+// Deal with several changes in events, batching them together.
+//
+// Preferably, changes should be kept to a minimum.
+// Sometimes, it’s needed to change the list of events, because parsing can be
+// messy, and it helps to expose a cleaner interface of events to the compiler
+// and other users.
+// It can also help to merge many adjacent similar events.
+// And, in other cases, it’s needed to parse subcontent: pass some events
+// through another tokenizer and inject the result.
+
+/**
+ * @typedef {[number, number, Array<Event>]} Change
+ * @typedef {[number, number, number]} Jump
+ */
+
+/**
+ * Tracks a bunch of edits.
+ */
+class EditMap {
+  /**
+   * Create a new edit map.
+   */
+  constructor() {
+    /**
+     * Record of changes.
+     *
+     * @type {Array<Change>}
+     */
+    this.map = [];
+  }
+
+  /**
+   * Create an edit: a remove and/or add at a certain place.
+   *
+   * @param {number} index
+   * @param {number} remove
+   * @param {Array<Event>} add
+   * @returns {undefined}
+   */
+  add(index, remove, add) {
+    addImplementation(this, index, remove, add);
+  }
+
+  // To do: add this when moving to `micromark`.
+  // /**
+  //  * Create an edit: but insert `add` before existing additions.
+  //  *
+  //  * @param {number} index
+  //  * @param {number} remove
+  //  * @param {Array<Event>} add
+  //  * @returns {undefined}
+  //  */
+  // addBefore(index, remove, add) {
+  //   addImplementation(this, index, remove, add, true)
+  // }
+
+  /**
+   * Done, change the events.
+   *
+   * @param {Array<Event>} events
+   * @returns {undefined}
+   */
+  consume(events) {
+    this.map.sort(function (a, b) {
+      return a[0] - b[0];
+    });
+
+    /* c8 ignore next 3 -- `resolve` is never called without tables, so without edits. */
+    if (this.map.length === 0) {
+      return;
+    }
+
+    // To do: if links are added in events, like they are in `markdown-rs`,
+    // this is needed.
+    // // Calculate jumps: where items in the current list move to.
+    // /** @type {Array<Jump>} */
+    // const jumps = []
+    // let index = 0
+    // let addAcc = 0
+    // let removeAcc = 0
+    // while (index < this.map.length) {
+    //   const [at, remove, add] = this.map[index]
+    //   removeAcc += remove
+    //   addAcc += add.length
+    //   jumps.push([at, removeAcc, addAcc])
+    //   index += 1
+    // }
+    //
+    // . shiftLinks(events, jumps)
+
+    let index = this.map.length;
+    /** @type {Array<Array<Event>>} */
+    const vecs = [];
+    while (index > 0) {
+      index -= 1;
+      vecs.push(events.slice(this.map[index][0] + this.map[index][1]), this.map[index][2]);
+
+      // Truncate rest.
+      events.length = this.map[index][0];
+    }
+    vecs.push(events.slice());
+    events.length = 0;
+    let slice = vecs.pop();
+    while (slice) {
+      for (const element of slice) {
+        events.push(element);
+      }
+      slice = vecs.pop();
+    }
+
+    // Truncate everything.
+    this.map.length = 0;
+  }
+}
+
+/**
+ * Create an edit.
+ *
+ * @param {EditMap} editMap
+ * @param {number} at
+ * @param {number} remove
+ * @param {Array<Event>} add
+ * @returns {undefined}
+ */
+function addImplementation(editMap, at, remove, add) {
+  let index = 0;
+
+  /* c8 ignore next 3 -- `resolve` is never called without tables, so without edits. */
+  if (remove === 0 && add.length === 0) {
+    return;
+  }
+  while (index < editMap.map.length) {
+    if (editMap.map[index][0] === at) {
+      editMap.map[index][1] += remove;
+
+      // To do: before not used by tables, use when moving to micromark.
+      // if (before) {
+      //   add.push(...editMap.map[index][2])
+      //   editMap.map[index][2] = add
+      // } else {
+      editMap.map[index][2].push(...add);
+      // }
+
+      return;
+    }
+    index += 1;
+  }
+  editMap.map.push([at, remove, add]);
+}
+
+// /**
+//  * Shift `previous` and `next` links according to `jumps`.
+//  *
+//  * This fixes links in case there are events removed or added between them.
+//  *
+//  * @param {Array<Event>} events
+//  * @param {Array<Jump>} jumps
+//  */
+// function shiftLinks(events, jumps) {
+//   let jumpIndex = 0
+//   let index = 0
+//   let add = 0
+//   let rm = 0
+
+//   while (index < events.length) {
+//     const rmCurr = rm
+
+//     while (jumpIndex < jumps.length && jumps[jumpIndex][0] <= index) {
+//       add = jumps[jumpIndex][2]
+//       rm = jumps[jumpIndex][1]
+//       jumpIndex += 1
+//     }
+
+//     // Ignore items that will be removed.
+//     if (rm > rmCurr) {
+//       index += rm - rmCurr
+//     } else {
+//       // ?
+//       // if let Some(link) = &events[index].link {
+//       //     if let Some(next) = link.next {
+//       //         events[next].link.as_mut().unwrap().previous = Some(index + add - rm);
+//       //         while jumpIndex < jumps.len() && jumps[jumpIndex].0 <= next {
+//       //             add = jumps[jumpIndex].2;
+//       //             rm = jumps[jumpIndex].1;
+//       //             jumpIndex += 1;
+//       //         }
+//       //         events[index].link.as_mut().unwrap().next = Some(next + add - rm);
+//       //         index = next;
+//       //         continue;
+//       //     }
+//       // }
+//       index += 1
+//     }
+//   }
+// }
+
+/**
+ * @import {Event} from 'micromark-util-types'
+ */
+
+/**
+ * @typedef {'center' | 'left' | 'none' | 'right'} Align
+ */
+
+/**
+ * Figure out the alignment of a GFM table.
+ *
+ * @param {Readonly<Array<Event>>} events
+ *   List of events.
+ * @param {number} index
+ *   Table enter event.
+ * @returns {Array<Align>}
+ *   List of aligns.
+ */
+function gfmTableAlign(events, index) {
+  let inDelimiterRow = false;
+  /** @type {Array<Align>} */
+  const align = [];
+  while (index < events.length) {
+    const event = events[index];
+    if (inDelimiterRow) {
+      if (event[0] === 'enter') {
+        // Start of alignment value: set a new column.
+        // To do: `markdown-rs` uses `tableDelimiterCellValue`.
+        if (event[1].type === 'tableContent') {
+          align.push(events[index + 1][1].type === 'tableDelimiterMarker' ? 'left' : 'none');
+        }
+      }
+      // Exits:
+      // End of alignment value: change the column.
+      // To do: `markdown-rs` uses `tableDelimiterCellValue`.
+      else if (event[1].type === 'tableContent') {
+        if (events[index - 1][1].type === 'tableDelimiterMarker') {
+          const alignIndex = align.length - 1;
+          align[alignIndex] = align[alignIndex] === 'left' ? 'center' : 'right';
+        }
+      }
+      // Done!
+      else if (event[1].type === 'tableDelimiterRow') {
+        break;
+      }
+    } else if (event[0] === 'enter' && event[1].type === 'tableDelimiterRow') {
+      inDelimiterRow = true;
+    }
+    index += 1;
+  }
+  return align;
+}
+
+/**
+ * @import {Event, Extension, Point, Resolver, State, Token, TokenizeContext, Tokenizer} from 'micromark-util-types'
  */
 
 
 /**
- * Plugin to support GFM (autolink literals, footnotes, strikethrough, tables, tasklists).
+ * Create an HTML extension for `micromark` to support GitHub tables syntax.
  *
- * @type {import('unified').Plugin<[Options?]|void[], Root>}
+ * @returns {Extension}
+ *   Extension for `micromark` that can be passed in `extensions` to enable GFM
+ *   table syntax.
  */
-function remarkGfm(options = {}) {
-  const data = this.data();
+function gfmTable() {
+  return {
+    flow: {
+      null: {
+        name: 'table',
+        tokenize: tokenizeTable,
+        resolveAll: resolveTable
+      }
+    }
+  };
+}
 
-  add('micromarkExtensions', gfm(options));
-  add('fromMarkdownExtensions', gfmFromMarkdown());
-  add('toMarkdownExtensions', gfmToMarkdown(options));
+/**
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeTable(effects, ok, nok) {
+  const self = this;
+  let size = 0;
+  let sizeB = 0;
+  /** @type {boolean | undefined} */
+  let seen;
+  return start;
 
   /**
-   * @param {string} field
-   * @param {unknown} value
+   * Start of a GFM table.
+   *
+   * If there is a valid table row or table head before, then we try to parse
+   * another row.
+   * Otherwise, we try to parse a head.
+   *
+   * ```markdown
+   * > | | a |
+   *     ^
+   *   | | - |
+   * > | | b |
+   *     ^
+   * ```
+   * @type {State}
    */
-  function add(field, value) {
-    const list = /** @type {unknown[]} */ (
-      // Other extensions
-      /* c8 ignore next 2 */
-      data[field] ? data[field] : (data[field] = [])
-    );
+  function start(code) {
+    let index = self.events.length - 1;
+    while (index > -1) {
+      const type = self.events[index][1].type;
+      if (type === "lineEnding" ||
+      // Note: markdown-rs uses `whitespace` instead of `linePrefix`
+      type === "linePrefix") index--;else break;
+    }
+    const tail = index > -1 ? self.events[index][1].type : null;
+    const next = tail === 'tableHead' || tail === 'tableRow' ? bodyRowStart : headRowBefore;
 
-    list.push(value);
+    // Don’t allow lazy body rows.
+    if (next === bodyRowStart && self.parser.lazy[self.now().line]) {
+      return nok(code);
+    }
+    return next(code);
   }
+
+  /**
+   * Before table head row.
+   *
+   * ```markdown
+   * > | | a |
+   *     ^
+   *   | | - |
+   *   | | b |
+   * ```
+   *
+   * @type {State}
+   */
+  function headRowBefore(code) {
+    effects.enter('tableHead');
+    effects.enter('tableRow');
+    return headRowStart(code);
+  }
+
+  /**
+   * Before table head row, after whitespace.
+   *
+   * ```markdown
+   * > | | a |
+   *     ^
+   *   | | - |
+   *   | | b |
+   * ```
+   *
+   * @type {State}
+   */
+  function headRowStart(code) {
+    if (code === 124) {
+      return headRowBreak(code);
+    }
+
+    // To do: micromark-js should let us parse our own whitespace in extensions,
+    // like `markdown-rs`:
+    //
+    // ```js
+    // // 4+ spaces.
+    // if (markdownSpace(code)) {
+    //   return nok(code)
+    // }
+    // ```
+
+    seen = true;
+    // Count the first character, that isn’t a pipe, double.
+    sizeB += 1;
+    return headRowBreak(code);
+  }
+
+  /**
+   * At break in table head row.
+   *
+   * ```markdown
+   * > | | a |
+   *     ^
+   *       ^
+   *         ^
+   *   | | - |
+   *   | | b |
+   * ```
+   *
+   * @type {State}
+   */
+  function headRowBreak(code) {
+    if (code === null) {
+      // Note: in `markdown-rs`, we need to reset, in `micromark-js` we don‘t.
+      return nok(code);
+    }
+    if (markdownLineEnding(code)) {
+      // If anything other than one pipe (ignoring whitespace) was used, it’s fine.
+      if (sizeB > 1) {
+        sizeB = 0;
+        // To do: check if this works.
+        // Feel free to interrupt:
+        self.interrupt = true;
+        effects.exit('tableRow');
+        effects.enter("lineEnding");
+        effects.consume(code);
+        effects.exit("lineEnding");
+        return headDelimiterStart;
+      }
+
+      // Note: in `markdown-rs`, we need to reset, in `micromark-js` we don‘t.
+      return nok(code);
+    }
+    if (markdownSpace(code)) {
+      // To do: check if this is fine.
+      // effects.attempt(State::Next(StateName::GfmTableHeadRowBreak), State::Nok)
+      // State::Retry(space_or_tab(tokenizer))
+      return factorySpace(effects, headRowBreak, "whitespace")(code);
+    }
+    sizeB += 1;
+    if (seen) {
+      seen = false;
+      // Header cell count.
+      size += 1;
+    }
+    if (code === 124) {
+      effects.enter('tableCellDivider');
+      effects.consume(code);
+      effects.exit('tableCellDivider');
+      // Whether a delimiter was seen.
+      seen = true;
+      return headRowBreak;
+    }
+
+    // Anything else is cell data.
+    effects.enter("data");
+    return headRowData(code);
+  }
+
+  /**
+   * In table head row data.
+   *
+   * ```markdown
+   * > | | a |
+   *       ^
+   *   | | - |
+   *   | | b |
+   * ```
+   *
+   * @type {State}
+   */
+  function headRowData(code) {
+    if (code === null || code === 124 || markdownLineEndingOrSpace(code)) {
+      effects.exit("data");
+      return headRowBreak(code);
+    }
+    effects.consume(code);
+    return code === 92 ? headRowEscape : headRowData;
+  }
+
+  /**
+   * In table head row escape.
+   *
+   * ```markdown
+   * > | | a\-b |
+   *         ^
+   *   | | ---- |
+   *   | | c    |
+   * ```
+   *
+   * @type {State}
+   */
+  function headRowEscape(code) {
+    if (code === 92 || code === 124) {
+      effects.consume(code);
+      return headRowData;
+    }
+    return headRowData(code);
+  }
+
+  /**
+   * Before delimiter row.
+   *
+   * ```markdown
+   *   | | a |
+   * > | | - |
+   *     ^
+   *   | | b |
+   * ```
+   *
+   * @type {State}
+   */
+  function headDelimiterStart(code) {
+    // Reset `interrupt`.
+    self.interrupt = false;
+
+    // Note: in `markdown-rs`, we need to handle piercing here too.
+    if (self.parser.lazy[self.now().line]) {
+      return nok(code);
+    }
+    effects.enter('tableDelimiterRow');
+    // Track if we’ve seen a `:` or `|`.
+    seen = false;
+    if (markdownSpace(code)) {
+      return factorySpace(effects, headDelimiterBefore, "linePrefix", self.parser.constructs.disable.null.includes('codeIndented') ? undefined : 4)(code);
+    }
+    return headDelimiterBefore(code);
+  }
+
+  /**
+   * Before delimiter row, after optional whitespace.
+   *
+   * Reused when a `|` is found later, to parse another cell.
+   *
+   * ```markdown
+   *   | | a |
+   * > | | - |
+   *     ^
+   *   | | b |
+   * ```
+   *
+   * @type {State}
+   */
+  function headDelimiterBefore(code) {
+    if (code === 45 || code === 58) {
+      return headDelimiterValueBefore(code);
+    }
+    if (code === 124) {
+      seen = true;
+      // If we start with a pipe, we open a cell marker.
+      effects.enter('tableCellDivider');
+      effects.consume(code);
+      effects.exit('tableCellDivider');
+      return headDelimiterCellBefore;
+    }
+
+    // More whitespace / empty row not allowed at start.
+    return headDelimiterNok(code);
+  }
+
+  /**
+   * After `|`, before delimiter cell.
+   *
+   * ```markdown
+   *   | | a |
+   * > | | - |
+   *      ^
+   * ```
+   *
+   * @type {State}
+   */
+  function headDelimiterCellBefore(code) {
+    if (markdownSpace(code)) {
+      return factorySpace(effects, headDelimiterValueBefore, "whitespace")(code);
+    }
+    return headDelimiterValueBefore(code);
+  }
+
+  /**
+   * Before delimiter cell value.
+   *
+   * ```markdown
+   *   | | a |
+   * > | | - |
+   *       ^
+   * ```
+   *
+   * @type {State}
+   */
+  function headDelimiterValueBefore(code) {
+    // Align: left.
+    if (code === 58) {
+      sizeB += 1;
+      seen = true;
+      effects.enter('tableDelimiterMarker');
+      effects.consume(code);
+      effects.exit('tableDelimiterMarker');
+      return headDelimiterLeftAlignmentAfter;
+    }
+
+    // Align: none.
+    if (code === 45) {
+      sizeB += 1;
+      // To do: seems weird that this *isn’t* left aligned, but that state is used?
+      return headDelimiterLeftAlignmentAfter(code);
+    }
+    if (code === null || markdownLineEnding(code)) {
+      return headDelimiterCellAfter(code);
+    }
+    return headDelimiterNok(code);
+  }
+
+  /**
+   * After delimiter cell left alignment marker.
+   *
+   * ```markdown
+   *   | | a  |
+   * > | | :- |
+   *        ^
+   * ```
+   *
+   * @type {State}
+   */
+  function headDelimiterLeftAlignmentAfter(code) {
+    if (code === 45) {
+      effects.enter('tableDelimiterFiller');
+      return headDelimiterFiller(code);
+    }
+
+    // Anything else is not ok after the left-align colon.
+    return headDelimiterNok(code);
+  }
+
+  /**
+   * In delimiter cell filler.
+   *
+   * ```markdown
+   *   | | a |
+   * > | | - |
+   *       ^
+   * ```
+   *
+   * @type {State}
+   */
+  function headDelimiterFiller(code) {
+    if (code === 45) {
+      effects.consume(code);
+      return headDelimiterFiller;
+    }
+
+    // Align is `center` if it was `left`, `right` otherwise.
+    if (code === 58) {
+      seen = true;
+      effects.exit('tableDelimiterFiller');
+      effects.enter('tableDelimiterMarker');
+      effects.consume(code);
+      effects.exit('tableDelimiterMarker');
+      return headDelimiterRightAlignmentAfter;
+    }
+    effects.exit('tableDelimiterFiller');
+    return headDelimiterRightAlignmentAfter(code);
+  }
+
+  /**
+   * After delimiter cell right alignment marker.
+   *
+   * ```markdown
+   *   | |  a |
+   * > | | -: |
+   *         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function headDelimiterRightAlignmentAfter(code) {
+    if (markdownSpace(code)) {
+      return factorySpace(effects, headDelimiterCellAfter, "whitespace")(code);
+    }
+    return headDelimiterCellAfter(code);
+  }
+
+  /**
+   * After delimiter cell.
+   *
+   * ```markdown
+   *   | |  a |
+   * > | | -: |
+   *          ^
+   * ```
+   *
+   * @type {State}
+   */
+  function headDelimiterCellAfter(code) {
+    if (code === 124) {
+      return headDelimiterBefore(code);
+    }
+    if (code === null || markdownLineEnding(code)) {
+      // Exit when:
+      // * there was no `:` or `|` at all (it’s a thematic break or setext
+      //   underline instead)
+      // * the header cell count is not the delimiter cell count
+      if (!seen || size !== sizeB) {
+        return headDelimiterNok(code);
+      }
+
+      // Note: in markdown-rs`, a reset is needed here.
+      effects.exit('tableDelimiterRow');
+      effects.exit('tableHead');
+      // To do: in `markdown-rs`, resolvers need to be registered manually.
+      // effects.register_resolver(ResolveName::GfmTable)
+      return ok(code);
+    }
+    return headDelimiterNok(code);
+  }
+
+  /**
+   * In delimiter row, at a disallowed byte.
+   *
+   * ```markdown
+   *   | | a |
+   * > | | x |
+   *       ^
+   * ```
+   *
+   * @type {State}
+   */
+  function headDelimiterNok(code) {
+    // Note: in `markdown-rs`, we need to reset, in `micromark-js` we don‘t.
+    return nok(code);
+  }
+
+  /**
+   * Before table body row.
+   *
+   * ```markdown
+   *   | | a |
+   *   | | - |
+   * > | | b |
+   *     ^
+   * ```
+   *
+   * @type {State}
+   */
+  function bodyRowStart(code) {
+    // Note: in `markdown-rs` we need to manually take care of a prefix,
+    // but in `micromark-js` that is done for us, so if we’re here, we’re
+    // never at whitespace.
+    effects.enter('tableRow');
+    return bodyRowBreak(code);
+  }
+
+  /**
+   * At break in table body row.
+   *
+   * ```markdown
+   *   | | a |
+   *   | | - |
+   * > | | b |
+   *     ^
+   *       ^
+   *         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function bodyRowBreak(code) {
+    if (code === 124) {
+      effects.enter('tableCellDivider');
+      effects.consume(code);
+      effects.exit('tableCellDivider');
+      return bodyRowBreak;
+    }
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit('tableRow');
+      return ok(code);
+    }
+    if (markdownSpace(code)) {
+      return factorySpace(effects, bodyRowBreak, "whitespace")(code);
+    }
+
+    // Anything else is cell content.
+    effects.enter("data");
+    return bodyRowData(code);
+  }
+
+  /**
+   * In table body row data.
+   *
+   * ```markdown
+   *   | | a |
+   *   | | - |
+   * > | | b |
+   *       ^
+   * ```
+   *
+   * @type {State}
+   */
+  function bodyRowData(code) {
+    if (code === null || code === 124 || markdownLineEndingOrSpace(code)) {
+      effects.exit("data");
+      return bodyRowBreak(code);
+    }
+    effects.consume(code);
+    return code === 92 ? bodyRowEscape : bodyRowData;
+  }
+
+  /**
+   * In table body row escape.
+   *
+   * ```markdown
+   *   | | a    |
+   *   | | ---- |
+   * > | | b\-c |
+   *         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function bodyRowEscape(code) {
+    if (code === 92 || code === 124) {
+      effects.consume(code);
+      return bodyRowData;
+    }
+    return bodyRowData(code);
+  }
+}
+
+/** @type {Resolver} */
+
+function resolveTable(events, context) {
+  let index = -1;
+  let inFirstCellAwaitingPipe = true;
+  /** @type {RowKind} */
+  let rowKind = 0;
+  /** @type {Range} */
+  let lastCell = [0, 0, 0, 0];
+  /** @type {Range} */
+  let cell = [0, 0, 0, 0];
+  let afterHeadAwaitingFirstBodyRow = false;
+  let lastTableEnd = 0;
+  /** @type {Token | undefined} */
+  let currentTable;
+  /** @type {Token | undefined} */
+  let currentBody;
+  /** @type {Token | undefined} */
+  let currentCell;
+  const map = new EditMap();
+  while (++index < events.length) {
+    const event = events[index];
+    const token = event[1];
+    if (event[0] === 'enter') {
+      // Start of head.
+      if (token.type === 'tableHead') {
+        afterHeadAwaitingFirstBodyRow = false;
+
+        // Inject previous (body end and) table end.
+        if (lastTableEnd !== 0) {
+          flushTableEnd(map, context, lastTableEnd, currentTable, currentBody);
+          currentBody = undefined;
+          lastTableEnd = 0;
+        }
+
+        // Inject table start.
+        currentTable = {
+          type: 'table',
+          start: Object.assign({}, token.start),
+          // Note: correct end is set later.
+          end: Object.assign({}, token.end)
+        };
+        map.add(index, 0, [['enter', currentTable, context]]);
+      } else if (token.type === 'tableRow' || token.type === 'tableDelimiterRow') {
+        inFirstCellAwaitingPipe = true;
+        currentCell = undefined;
+        lastCell = [0, 0, 0, 0];
+        cell = [0, index + 1, 0, 0];
+
+        // Inject table body start.
+        if (afterHeadAwaitingFirstBodyRow) {
+          afterHeadAwaitingFirstBodyRow = false;
+          currentBody = {
+            type: 'tableBody',
+            start: Object.assign({}, token.start),
+            // Note: correct end is set later.
+            end: Object.assign({}, token.end)
+          };
+          map.add(index, 0, [['enter', currentBody, context]]);
+        }
+        rowKind = token.type === 'tableDelimiterRow' ? 2 : currentBody ? 3 : 1;
+      }
+      // Cell data.
+      else if (rowKind && (token.type === "data" || token.type === 'tableDelimiterMarker' || token.type === 'tableDelimiterFiller')) {
+        inFirstCellAwaitingPipe = false;
+
+        // First value in cell.
+        if (cell[2] === 0) {
+          if (lastCell[1] !== 0) {
+            cell[0] = cell[1];
+            currentCell = flushCell(map, context, lastCell, rowKind, undefined, currentCell);
+            lastCell = [0, 0, 0, 0];
+          }
+          cell[2] = index;
+        }
+      } else if (token.type === 'tableCellDivider') {
+        if (inFirstCellAwaitingPipe) {
+          inFirstCellAwaitingPipe = false;
+        } else {
+          if (lastCell[1] !== 0) {
+            cell[0] = cell[1];
+            currentCell = flushCell(map, context, lastCell, rowKind, undefined, currentCell);
+          }
+          lastCell = cell;
+          cell = [lastCell[1], index, 0, 0];
+        }
+      }
+    }
+    // Exit events.
+    else if (token.type === 'tableHead') {
+      afterHeadAwaitingFirstBodyRow = true;
+      lastTableEnd = index;
+    } else if (token.type === 'tableRow' || token.type === 'tableDelimiterRow') {
+      lastTableEnd = index;
+      if (lastCell[1] !== 0) {
+        cell[0] = cell[1];
+        currentCell = flushCell(map, context, lastCell, rowKind, index, currentCell);
+      } else if (cell[1] !== 0) {
+        currentCell = flushCell(map, context, cell, rowKind, index, currentCell);
+      }
+      rowKind = 0;
+    } else if (rowKind && (token.type === "data" || token.type === 'tableDelimiterMarker' || token.type === 'tableDelimiterFiller')) {
+      cell[3] = index;
+    }
+  }
+  if (lastTableEnd !== 0) {
+    flushTableEnd(map, context, lastTableEnd, currentTable, currentBody);
+  }
+  map.consume(context.events);
+
+  // To do: move this into `html`, when events are exposed there.
+  // That’s what `markdown-rs` does.
+  // That needs updates to `mdast-util-gfm-table`.
+  index = -1;
+  while (++index < context.events.length) {
+    const event = context.events[index];
+    if (event[0] === 'enter' && event[1].type === 'table') {
+      event[1]._align = gfmTableAlign(context.events, index);
+    }
+  }
+  return events;
+}
+
+/**
+ * Generate a cell.
+ *
+ * @param {EditMap} map
+ * @param {Readonly<TokenizeContext>} context
+ * @param {Readonly<Range>} range
+ * @param {RowKind} rowKind
+ * @param {number | undefined} rowEnd
+ * @param {Token | undefined} previousCell
+ * @returns {Token | undefined}
+ */
+// eslint-disable-next-line max-params
+function flushCell(map, context, range, rowKind, rowEnd, previousCell) {
+  // `markdown-rs` uses:
+  // rowKind === 2 ? 'tableDelimiterCell' : 'tableCell'
+  const groupName = rowKind === 1 ? 'tableHeader' : rowKind === 2 ? 'tableDelimiter' : 'tableData';
+  // `markdown-rs` uses:
+  // rowKind === 2 ? 'tableDelimiterCellValue' : 'tableCellText'
+  const valueName = 'tableContent';
+
+  // Insert an exit for the previous cell, if there is one.
+  //
+  // ```markdown
+  // > | | aa | bb | cc |
+  //          ^-- exit
+  //           ^^^^-- this cell
+  // ```
+  if (range[0] !== 0) {
+    previousCell.end = Object.assign({}, getPoint(context.events, range[0]));
+    map.add(range[0], 0, [['exit', previousCell, context]]);
+  }
+
+  // Insert enter of this cell.
+  //
+  // ```markdown
+  // > | | aa | bb | cc |
+  //           ^-- enter
+  //           ^^^^-- this cell
+  // ```
+  const now = getPoint(context.events, range[1]);
+  previousCell = {
+    type: groupName,
+    start: Object.assign({}, now),
+    // Note: correct end is set later.
+    end: Object.assign({}, now)
+  };
+  map.add(range[1], 0, [['enter', previousCell, context]]);
+
+  // Insert text start at first data start and end at last data end, and
+  // remove events between.
+  //
+  // ```markdown
+  // > | | aa | bb | cc |
+  //            ^-- enter
+  //             ^-- exit
+  //           ^^^^-- this cell
+  // ```
+  if (range[2] !== 0) {
+    const relatedStart = getPoint(context.events, range[2]);
+    const relatedEnd = getPoint(context.events, range[3]);
+    /** @type {Token} */
+    const valueToken = {
+      type: valueName,
+      start: Object.assign({}, relatedStart),
+      end: Object.assign({}, relatedEnd)
+    };
+    map.add(range[2], 0, [['enter', valueToken, context]]);
+    if (rowKind !== 2) {
+      // Fix positional info on remaining events
+      const start = context.events[range[2]];
+      const end = context.events[range[3]];
+      start[1].end = Object.assign({}, end[1].end);
+      start[1].type = "chunkText";
+      start[1].contentType = "text";
+
+      // Remove if needed.
+      if (range[3] > range[2] + 1) {
+        const a = range[2] + 1;
+        const b = range[3] - range[2] - 1;
+        map.add(a, b, []);
+      }
+    }
+    map.add(range[3] + 1, 0, [['exit', valueToken, context]]);
+  }
+
+  // Insert an exit for the last cell, if at the row end.
+  //
+  // ```markdown
+  // > | | aa | bb | cc |
+  //                    ^-- exit
+  //               ^^^^^^-- this cell (the last one contains two “between” parts)
+  // ```
+  if (rowEnd !== undefined) {
+    previousCell.end = Object.assign({}, getPoint(context.events, rowEnd));
+    map.add(rowEnd, 0, [['exit', previousCell, context]]);
+    previousCell = undefined;
+  }
+  return previousCell;
+}
+
+/**
+ * Generate table end (and table body end).
+ *
+ * @param {Readonly<EditMap>} map
+ * @param {Readonly<TokenizeContext>} context
+ * @param {number} index
+ * @param {Token} table
+ * @param {Token | undefined} tableBody
+ */
+// eslint-disable-next-line max-params
+function flushTableEnd(map, context, index, table, tableBody) {
+  /** @type {Array<Event>} */
+  const exits = [];
+  const related = getPoint(context.events, index);
+  if (tableBody) {
+    tableBody.end = Object.assign({}, related);
+    exits.push(['exit', tableBody, context]);
+  }
+  table.end = Object.assign({}, related);
+  exits.push(['exit', table, context]);
+  map.add(index + 1, 0, exits);
+}
+
+/**
+ * @param {Readonly<Array<Event>>} events
+ * @param {number} index
+ * @returns {Readonly<Point>}
+ */
+function getPoint(events, index) {
+  const event = events[index];
+  const side = event[0] === 'enter' ? 'start' : 'end';
+  return event[1][side];
+}
+
+/**
+ * @import {Extension, State, TokenizeContext, Tokenizer} from 'micromark-util-types'
+ */
+
+const tasklistCheck = {
+  name: 'tasklistCheck',
+  tokenize: tokenizeTasklistCheck
+};
+
+/**
+ * Create an HTML extension for `micromark` to support GFM task list items
+ * syntax.
+ *
+ * @returns {Extension}
+ *   Extension for `micromark` that can be passed in `htmlExtensions` to
+ *   support GFM task list items when serializing to HTML.
+ */
+function gfmTaskListItem() {
+  return {
+    text: {
+      [91]: tasklistCheck
+    }
+  };
+}
+
+/**
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function tokenizeTasklistCheck(effects, ok, nok) {
+  const self = this;
+  return open;
+
+  /**
+   * At start of task list item check.
+   *
+   * ```markdown
+   * > | * [x] y.
+   *       ^
+   * ```
+   *
+   * @type {State}
+   */
+  function open(code) {
+    if (
+    // Exit if there’s stuff before.
+    self.previous !== null ||
+    // Exit if not in the first content that is the first child of a list
+    // item.
+    !self._gfmTasklistFirstContentOfListItem) {
+      return nok(code);
+    }
+    effects.enter('taskListCheck');
+    effects.enter('taskListCheckMarker');
+    effects.consume(code);
+    effects.exit('taskListCheckMarker');
+    return inside;
+  }
+
+  /**
+   * In task list item check.
+   *
+   * ```markdown
+   * > | * [x] y.
+   *        ^
+   * ```
+   *
+   * @type {State}
+   */
+  function inside(code) {
+    // Currently we match how GH works in files.
+    // To match how GH works in comments, use `markdownSpace` (`[\t ]`) instead
+    // of `markdownLineEndingOrSpace` (`[\t\n\r ]`).
+    if (markdownLineEndingOrSpace(code)) {
+      effects.enter('taskListCheckValueUnchecked');
+      effects.consume(code);
+      effects.exit('taskListCheckValueUnchecked');
+      return close;
+    }
+    if (code === 88 || code === 120) {
+      effects.enter('taskListCheckValueChecked');
+      effects.consume(code);
+      effects.exit('taskListCheckValueChecked');
+      return close;
+    }
+    return nok(code);
+  }
+
+  /**
+   * At close of task list item check.
+   *
+   * ```markdown
+   * > | * [x] y.
+   *         ^
+   * ```
+   *
+   * @type {State}
+   */
+  function close(code) {
+    if (code === 93) {
+      effects.enter('taskListCheckMarker');
+      effects.consume(code);
+      effects.exit('taskListCheckMarker');
+      effects.exit('taskListCheck');
+      return after;
+    }
+    return nok(code);
+  }
+
+  /**
+   * @type {State}
+   */
+  function after(code) {
+    // EOL in paragraph means there must be something else after it.
+    if (markdownLineEnding(code)) {
+      return ok(code);
+    }
+
+    // Space or tab?
+    // Check what comes after.
+    if (markdownSpace(code)) {
+      return effects.check({
+        tokenize: spaceThenNonSpace
+      }, ok, nok)(code);
+    }
+
+    // EOF, or non-whitespace, both wrong.
+    return nok(code);
+  }
+}
+
+/**
+ * @this {TokenizeContext}
+ * @type {Tokenizer}
+ */
+function spaceThenNonSpace(effects, ok, nok) {
+  return factorySpace(effects, after, "whitespace");
+
+  /**
+   * After whitespace, after task list item check.
+   *
+   * ```markdown
+   * > | * [x] y.
+   *           ^
+   * ```
+   *
+   * @type {State}
+   */
+  function after(code) {
+    // EOF means there was nothing, so bad.
+    // EOL means there’s content after it, so good.
+    // Impossible to have more spaces.
+    // Anything else is good.
+    return code === null ? nok(code) : ok(code);
+  }
+}
+
+/**
+ * @typedef {import('micromark-extension-gfm-footnote').HtmlOptions} HtmlOptions
+ * @typedef {import('micromark-extension-gfm-strikethrough').Options} Options
+ * @typedef {import('micromark-util-types').Extension} Extension
+ * @typedef {import('micromark-util-types').HtmlExtension} HtmlExtension
+ */
+
+
+/**
+ * Create an extension for `micromark` to enable GFM syntax.
+ *
+ * @param {Options | null | undefined} [options]
+ *   Configuration (optional).
+ *
+ *   Passed to `micromark-extens-gfm-strikethrough`.
+ * @returns {Extension}
+ *   Extension for `micromark` that can be passed in `extensions` to enable GFM
+ *   syntax.
+ */
+function gfm(options) {
+  return combineExtensions([
+    gfmAutolinkLiteral(),
+    gfmFootnote(),
+    gfmStrikethrough(options),
+    gfmTable(),
+    gfmTaskListItem()
+  ])
+}
+
+/**
+ * @import {Root} from 'mdast'
+ * @import {Options} from 'remark-gfm'
+ * @import {} from 'remark-parse'
+ * @import {} from 'remark-stringify'
+ * @import {Processor} from 'unified'
+ */
+
+
+/** @type {Options} */
+const emptyOptions = {};
+
+/**
+ * Add support GFM (autolink literals, footnotes, strikethrough, tables,
+ * tasklists).
+ *
+ * @param {Options | null | undefined} [options]
+ *   Configuration (optional).
+ * @returns {undefined}
+ *   Nothing.
+ */
+function remarkGfm(options) {
+  // @ts-expect-error: TS is wrong about `this`.
+  // eslint-disable-next-line unicorn/no-this-assignment
+  const self = /** @type {Processor<Root>} */ (this);
+  const settings = options || emptyOptions;
+  const data = self.data();
+
+  const micromarkExtensions =
+    data.micromarkExtensions || (data.micromarkExtensions = []);
+  const fromMarkdownExtensions =
+    data.fromMarkdownExtensions || (data.fromMarkdownExtensions = []);
+  const toMarkdownExtensions =
+    data.toMarkdownExtensions || (data.toMarkdownExtensions = []);
+
+  micromarkExtensions.push(gfm(settings));
+  fromMarkdownExtensions.push(gfmFromMarkdown());
+  toMarkdownExtensions.push(gfmToMarkdown(settings));
 }
 
 function mdAstToString(ast, settings) {
   return unified()
     .use(remarkStringify)
     .use(remarkGfm)
-    .data('settings', settings || {})
-    .stringify(ast)
+    .data("settings", {})
+    .stringify(ast);
 }
 
 function tableToCode() {
   return (tree) =>
-    visit(tree, 'table', (node) => {
+    visit(tree, "table", (node) => {
       const value = mdAstToString(node);
-      node.type = 'code';
+      node.type = "code";
       node.lang = null;
       node.meta = null;
       node.value = value.trim();
       node.children = null;
-      return null
-    })
+      return null;
+    });
 }
 
 module.exports = tableToCode;

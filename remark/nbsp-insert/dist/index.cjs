@@ -1,0 +1,1 @@
+"use strict";Object.defineProperty(exports, "__esModule", {value: true});var _unistutilvisit = require('unist-util-visit');var i=function(){return r=>_unistutilvisit.visit.call(void 0, r,"text",e=>{e.value=e.value.replace(/( |[ \u00a0]{2,})([:;?!…])(?= |$|\*+)/g,t=>"\xA0"+t.substring(t.length-1,t.length))})},n= exports.default =i;exports.default = n;

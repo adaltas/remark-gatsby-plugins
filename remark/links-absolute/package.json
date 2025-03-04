@@ -29,6 +29,7 @@
     }
   },
   "files": [
+    "/dist",
     "/lib"
   ],
   "license": "MIT",
