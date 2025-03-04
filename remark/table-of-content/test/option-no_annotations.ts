@@ -1,10 +1,10 @@
-/// <reference path="./mdx-annotations.d.ts" />
 import "should";
 import dedent from "dedent";
 import { mdxAnnotations } from "mdx-annotations";
+import { compile } from "@mdx-js/mdx";
 import { type Data } from "vfile";
 import pluginToc, { type DataToc } from "../src/index.js";
-import { compile } from "@mdx-js/mdx";
+import "./mdx-annotations.d.ts";
 
 interface DataWithToc extends Data {
   toc: DataToc;
