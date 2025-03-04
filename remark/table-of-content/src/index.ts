@@ -1,6 +1,7 @@
 import { type Plugin } from "unified";
 import Slugger from "github-slugger";
 import { type Root, type Heading } from "mdast";
+import { type Properties } from "hast";
 import { toString } from "mdast-util-to-string";
 import { visit } from "unist-util-visit";
 import * as acorn from "acorn";
@@ -25,6 +26,11 @@ type DataToc = DataTocItem[];
 
 export type { DataToc };
 
+// Extends hast properties to allow ts to build in strict mode
+interface HProperties extends Properties {
+  annotation?: string;
+}
+
 const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
   depth_min = 1,
   depth_max = 3,
@@ -48,9 +54,10 @@ const remarkToc: Plugin<[TableOfContentOptions?], Root> = function ({
       // - Place the annotation in `node.hProperties.annotation`
       // - [Parse](https://github.com/bradlc/mdx-annotations/blob/main/index.js#L134) the annotation with [acorn](https://github.com/acornjs/acorn/blob/master/acorn/src/acorn.d.ts)
       let anchor: string = "";
-      if (!no_annotations && node.data?.hProperties?.annotation) {
+      const hProperties = node.data?.hProperties as HProperties;
+      if (!no_annotations && hProperties?.annotation) {
         const annotation = (
-          acorn.parse("(" + node.data?.hProperties?.annotation + ")", {
+          acorn.parse("(" + hProperties?.annotation + ")", {
             ecmaVersion: "latest",
           }).body[0] as acorn.ExpressionStatement
         ).expression as acorn.ObjectExpression;

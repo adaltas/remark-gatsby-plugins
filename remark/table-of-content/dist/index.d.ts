@@ -5,6 +5,9 @@ interface TableOfContentOptions {
     depth_min?: number;
     depth_max?: number;
     property?: string[];
+    no_annotations?: boolean;
+    no_hash?: boolean;
+    prefix?: string;
 }
 interface DataTocItem {
     title: string;
