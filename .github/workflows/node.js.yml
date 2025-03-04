@@ -19,9 +19,9 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node-version }}
-      - run: yarn --frozen-lockfile
+      - run: npm ci
       - run: git config --global user.email "you@example.com" && git config --global user.name "Your Name"
-      - run: yarn run test
+      - run: npm run test
   publish:
     needs: [test]
     runs-on: ubuntu-latest
