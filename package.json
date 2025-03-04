@@ -36,6 +36,7 @@
     "*.md": "prettier -w"
   },
   "scripts": {
+    "build": "lerna exec -- npm run build",
     "lint:check": "eslint",
     "lint:fix": "eslint --fix",
     "lint:staged": "npx lint-staged",
