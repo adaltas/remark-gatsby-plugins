@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "author": "David Worms <david@adaltas.com>",
   "dependencies": {
-    "lerna": "^8.1.9"
+    "lerna": "^8.2.1"
   },
   "description": "A selection of remark and Gatsby plugins developed and used by Adaltas",
   "license": "MIT",
@@ -16,20 +16,20 @@
     "remark/*"
   ],
   "devDependencies": {
-    "@commitlint/cli": "^19.6.1",
-    "@commitlint/config-conventional": "^19.6.0",
+    "@commitlint/cli": "^19.7.1",
+    "@commitlint/config-conventional": "^19.7.1",
     "@commitlint/config-lerna-scopes": "^19.7.0",
-    "@eslint/core": "^0.10.0",
-    "@eslint/js": "^9.19.0",
-    "@types/eslint__js": "^8.42.3",
-    "eslint": "^9.19.0",
-    "eslint-config-prettier": "^10.0.1",
+    "@eslint/core": "^0.12.0",
+    "@eslint/js": "^9.21.0",
+    "@types/eslint__js": "^9.14.0",
+    "eslint": "^9.21.0",
+    "eslint-config-prettier": "^10.0.2",
     "eslint-plugin-mocha": "^10.5.0",
     "eslint-plugin-prettier": "^5.2.3",
     "husky": "^9.1.7",
-    "lint-staged": "^15.4.2",
-    "prettier": "^3.4.2",
-    "typescript-eslint": "^8.21.0"
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.3",
+    "typescript-eslint": "^8.26.0"
   },
   "lint-staged": {
     "*.js": "npm run lint:fix",

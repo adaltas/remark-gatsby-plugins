@@ -7,7 +7,7 @@
     "github-slugger": "^2.0.0",
     "mdast": "^3.0.0",
     "mdast-util-to-string": "^4.0.0",
-    "mixme": "^1.1.0",
+    "mixme": "^2.0.2",
     "unist-util-visit": "^5.0.0"
   },
   "devDependencies": {
@@ -22,8 +22,8 @@
     "remark-parse": "^11.0.0",
     "remark-read-frontmatter": "^0.2.2",
     "remark-rehype": "^11.1.1",
-    "rollup": "^4.32.0",
-    "tsx": "^4.19.2",
+    "rollup": "^4.34.9",
+    "tsx": "^4.19.3",
     "unified": "^11.0.5"
   },
   "exports": {

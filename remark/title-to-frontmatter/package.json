@@ -15,7 +15,7 @@
     "remark-parse": "^11.0.0",
     "remark-read-frontmatter": "^0.2.2",
     "remark-rehype": "^11.1.1",
-    "rollup": "^4.32.0",
+    "rollup": "^4.34.9",
     "should": "^13.2.3",
     "unified": "^11.0.5"
   },
