@@ -6,7 +6,8 @@ Upload every image present on the markdown article into a public GIT repository 
 
 - `base_url` ()  
   Base public Git URL use to view raw data file.
-- `branch` (string, `main`)
+- `branch` (string, `main`)  
+  Name of the tracking branch.
 - `location` ()\
   Convert the image path into a path inside the local repository.
 - `repo_public` ()\
