@@ -1,3 +1,4 @@
+import * as hast from 'hast';
 import { Plugin } from 'unified';
 import { Root } from 'mdast';
 
@@ -16,6 +17,16 @@ interface DataTocItem {
 }
 type DataToc = DataTocItem[];
 
+declare module "hast" {
+    interface Properties {
+        annotation?: string;
+    }
+}
+declare module "mdast" {
+    interface Data {
+        hProperties?: hast.Properties;
+    }
+}
 declare const remarkToc: Plugin<[TableOfContentOptions?], Root>;
 
 interface Obj {
