@@ -1,6 +1,6 @@
 {
   "name": "remark-table-to-code",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "remark-gfm": "^4.0.1",

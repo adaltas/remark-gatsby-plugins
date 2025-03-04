@@ -1,6 +1,6 @@
 {
   "name": "remark-links-absolute",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "author": "David Worms <david@adaltas.com> (http://www.adaltas.com)",
   "dependencies": {
     "unist-util-visit": "^5.0.0"
