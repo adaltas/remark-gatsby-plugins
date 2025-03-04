@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.2.3](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-table-to-code@0.2.2...remark-table-to-code@0.2.3) (2025-03-04)
+
+### Bug Fixes
+
+- expose dist folder ([77ad1cc](https://github.com/adaltas/remark-gatsby-plugins/commit/77ad1cc3e82f4e609ff5a6e36a9efc55d5dbb7cc))
+
 ## [0.2.2](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-table-to-code@0.2.1...remark-table-to-code@0.2.2) (2025-03-04)
 
 **Note:** Version bump only for package remark-table-to-code
