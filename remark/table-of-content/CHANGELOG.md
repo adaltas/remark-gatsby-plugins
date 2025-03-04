@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.5.2](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-table-of-content@0.5.0...remark-table-of-content@0.5.2) (2025-03-04)
+
+### Bug Fixes
+
+- expose dist folder ([77ad1cc](https://github.com/adaltas/remark-gatsby-plugins/commit/77ad1cc3e82f4e609ff5a6e36a9efc55d5dbb7cc))
+
 ## [0.5.1](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-table-of-content@0.5.0...remark-table-of-content@0.5.1) (2025-03-04)
 
 ### Bug Fixes

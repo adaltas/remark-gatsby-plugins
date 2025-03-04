@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [0.1.13](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-title-to-frontmatter@0.1.11...remark-title-to-frontmatter@0.1.13) (2025-03-04)
+
+### Bug Fixes
+
+- expose dist folder ([77ad1cc](https://github.com/adaltas/remark-gatsby-plugins/commit/77ad1cc3e82f4e609ff5a6e36a9efc55d5dbb7cc))
+
 ## [0.1.12](https://github.com/adaltas/remark-gatsby-plugins/compare/remark-title-to-frontmatter@0.1.11...remark-title-to-frontmatter@0.1.12) (2025-03-04)
 
 ### Bug Fixes
