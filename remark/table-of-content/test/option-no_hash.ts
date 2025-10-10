@@ -6,12 +6,10 @@ import remark2rehype from "remark-rehype";
 import html from "rehype-stringify";
 import extractFrontmatter from "remark-frontmatter";
 import pluginReadFrontmatter from "remark-read-frontmatter";
-import pluginToc, { DataToc } from "../src/index.js";
-import { Data } from "mdast";
+import pluginToc from "../src/index.js";
 
 describe("option `no_hash`", function () {
   it("default is `true`", async function () {
-    const space = " ";
     const { data } = await unified()
       .use(parseMarkdown)
       .use(extractFrontmatter, ["yaml"])
@@ -19,9 +17,9 @@ describe("option `no_hash`", function () {
       .use(pluginToc)
       .use(remark2rehype)
       .use(html).process(dedent`
-          # Heading 1 #my-header-1
-          ## Heading 2 #my-header-2
-        `);
+        # Heading 1 #my-header-1
+        ## Heading 2 #my-header-2
+      `);
     data.should.eql({
       toc: [
         { title: "Heading 1", depth: 1, anchor: "my-header-1" },
@@ -31,7 +29,6 @@ describe("option `no_hash`", function () {
   });
 
   it("disabled if false", async function () {
-    const space = " ";
     const { data } = await unified()
       .use(parseMarkdown)
       .use(extractFrontmatter, ["yaml"])
@@ -39,9 +36,9 @@ describe("option `no_hash`", function () {
       .use(pluginToc, { no_hash: true })
       .use(remark2rehype)
       .use(html).process(dedent`
-            # Heading 1 #my-header-1
-            ## Heading 2 #my-header-2
-          `);
+        # Heading 1 #my-header-1
+        ## Heading 2 #my-header-2
+      `);
     data.should.eql({
       toc: [
         {
@@ -67,9 +64,9 @@ describe("option `no_hash`", function () {
       .use(pluginToc)
       .use(remark2rehype)
       .use(html).process(dedent`
-            # Heading 1 ${space} #my-header-1
-            ## Heading 2 #my-header-2	${space}
-          `);
+        # Heading 1 ${space} #my-header-1
+        ## Heading 2 #my-header-2	${space}
+      `);
     data.should.eql({
       toc: [
         { title: "Heading 1", depth: 1, anchor: "my-header-1" },
